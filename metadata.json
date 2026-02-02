@@ -1,0 +1,7 @@
+{
+  "name": "SmartReceipts AI",
+  "description": "Intelligent receipt tracking and management powered by Gemini AI.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
