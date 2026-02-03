@@ -60,8 +60,8 @@ export default async function handler(req, res) {
     };
 
     // Chamada REST direta para a API do Google (v1beta)
-    // Usando gemini-1.5-flash pois é a versão estável e disponível.
-    const model = 'gemini-1.5-flash';
+    // Modelo atualizado para gemini-2.5-flash conforme solicitado
+    const model = 'gemini-2.5-flash';
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
     const payload = {
