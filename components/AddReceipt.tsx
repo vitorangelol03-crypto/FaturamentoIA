@@ -4,6 +4,7 @@ import { extractReceiptData } from '../services/geminiService';
 import { Category } from '../types';
 import { supabase } from '../services/supabaseClient';
 import { clsx } from 'clsx';
+import { REQUIRED_CNPJ } from '../constants';
 
 interface AddReceiptProps {
   categories: Category[];
@@ -243,6 +244,16 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved }) =
       const base64 = await fileToBase64(nextItem.file);
       const rawData = await extractReceiptData(base64, nextItem.file.type);
       
+      // --- VALIDAÇÃO DE CNPJ OBRIGATÓRIA ---
+      // Remove caracteres não numéricos para comparação segura
+      const extractedCNPJ = rawData.cnpj ? rawData.cnpj.replace(/\D/g, '') : '';
+      const cleanRequiredCNPJ = REQUIRED_CNPJ.replace(/\D/g, '');
+
+      if (extractedCNPJ !== cleanRequiredCNPJ) {
+          throw new Error(`CNPJ Inválido ou Divergente. A nota deve ser da firma (CNPJ ${REQUIRED_CNPJ}). CNPJ Lido: ${extractedCNPJ || 'Não identificado'}`);
+      }
+      // -------------------------------------
+
       const matchedCategory = categories.find(c => 
           c.name.toLowerCase() === rawData.suggested_category?.toLowerCase()
       ) || categories.find(c => c.is_default) || categories[0];
