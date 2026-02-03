@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Camera, Upload, X, CheckCircle, XCircle, Loader2, Play, Pause, AlertTriangle, FileText, ArrowRight } from 'lucide-react';
+import { Camera, Upload, X, CheckCircle, XCircle, Loader2, Play, Pause, AlertTriangle, FileText, ArrowRight, Save, Edit2, RotateCcw, Image as ImageIcon, Zap } from 'lucide-react';
 import { extractReceiptData } from '../services/geminiService';
-import { Category, Receipt } from '../types';
+import { Category } from '../types';
 import { supabase } from '../services/supabaseClient';
 import { clsx } from 'clsx';
 
@@ -17,18 +17,32 @@ interface QueueItem {
   file: File;
   status: QueueStatus;
   establishment?: string;
+  total_amount?: number;
+  date?: string;
+  category_id?: string;
+  dbId?: string; // ID salvo no Supabase
   errorMsg?: string;
+  imagePreview?: string;
 }
 
 export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved }) => {
-  const [mode, setMode] = useState<'upload' | 'queue' | 'summary'>('upload');
+  const [mode, setMode] = useState<'upload' | 'camera' | 'queue' | 'summary'>('upload');
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [cancelRequested, setCancelRequested] = useState(false);
   
-  // Refs para inputs ocultos
+  // Camera State
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+  const [flashEffect, setFlashEffect] = useState(false);
+  const [permissionError, setPermissionError] = useState(false);
+
+  // Edit State
+  const [editingItem, setEditingItem] = useState<QueueItem | null>(null);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+
+  // File Input Ref
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   // Stats
   const processedCount = queue.filter(i => i.status === 'success').length;
@@ -38,7 +52,103 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved }) =
     ? ((processedCount + errorCount) / totalCount) * 100 
     : 0;
 
-  // --- HELPER: Compress Image ---
+  // --- CAMERA FUNCTIONS ---
+
+  const startCamera = async () => {
+    try {
+      setMode('camera');
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { 
+          facingMode: 'environment', // Tenta usar câmera traseira
+          width: { ideal: 1920 },
+          height: { ideal: 1080 }
+        },
+        audio: false 
+      });
+      setCameraStream(stream);
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+      setPermissionError(false);
+    } catch (err) {
+      console.error("Erro ao acessar câmera:", err);
+      setPermissionError(true);
+      // Fallback: Se der erro (ex: permissão negada), volta para upload normal
+      alert("Não foi possível acessar a câmera. Verifique as permissões.");
+      setMode('upload');
+    }
+  };
+
+  const stopCamera = () => {
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(track => track.stop());
+      setCameraStream(null);
+    }
+  };
+
+  const takePhoto = () => {
+    if (!videoRef.current || !canvasRef.current) return;
+
+    // Visual Flash Effect
+    setFlashEffect(true);
+    setTimeout(() => setFlashEffect(false), 150);
+
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    
+    // Configura canvas para tamanho do vídeo
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    
+    // Desenha frame atual
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        
+        // Converte para File
+        canvas.toBlob((blob) => {
+            if (blob) {
+                const file = new File([blob], `foto_${Date.now()}.jpg`, { type: 'image/jpeg' });
+                const previewUrl = URL.createObjectURL(blob);
+                
+                // Adiciona à fila
+                const newItem: QueueItem = {
+                    id: Math.random().toString(36).substr(2, 9),
+                    file: file,
+                    status: 'waiting',
+                    imagePreview: previewUrl
+                };
+                setQueue(prev => [...prev, newItem]);
+            }
+        }, 'image/jpeg', 0.8);
+    }
+  };
+
+  const finishCameraSession = () => {
+    stopCamera();
+    setMode('queue');
+  };
+
+  // --- FILE HANDLING ---
+
+  const handleFilesSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      const newItems: QueueItem[] = Array.from(e.target.files).map(file => ({
+        id: Math.random().toString(36).substr(2, 9),
+        file,
+        status: 'waiting',
+        imagePreview: URL.createObjectURL(file)
+      }));
+      
+      setQueue(prev => [...prev, ...newItems]);
+      setMode('queue');
+      e.target.value = ''; 
+    }
+  };
+
+  // --- QUEUE PROCESSING ---
+
+  // Compressão de Imagem
   const compressImage = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -50,8 +160,6 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved }) =
           const canvas = document.createElement('canvas');
           let width = img.width;
           let height = img.height;
-          
-          // Max dimensões (Full HD aprox)
           const MAX_DIM = 1920; 
           if (width > height) {
             if (width > MAX_DIM) {
@@ -64,13 +172,10 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved }) =
               height = MAX_DIM;
             }
           }
-
           canvas.width = width;
           canvas.height = height;
           const ctx = canvas.getContext('2d');
           ctx?.drawImage(img, 0, 0, width, height);
-          
-          // Compressão JPEG 0.7
           const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
           resolve(dataUrl);
         };
@@ -81,7 +186,6 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved }) =
   };
 
   const fileToBase64 = (file: File): Promise<string> => {
-      // Se for PDF, não comprime via Canvas
       if (file.type === 'application/pdf') {
           return new Promise((resolve, reject) => {
               const reader = new FileReader();
@@ -90,75 +194,51 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved }) =
               reader.onerror = error => reject(error);
           });
       }
-      // Se for imagem, tenta comprimir
       return compressImage(file);
   };
 
-  const handleFilesSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      const newItems: QueueItem[] = Array.from(e.target.files).map((file: File) => ({
-        id: Math.random().toString(36).substr(2, 9),
-        file,
-        status: 'waiting'
-      }));
-      
-      setQueue(prev => [...prev, ...newItems]);
-      setMode('queue');
-      // Limpa inputs para permitir selecionar o mesmo arquivo se quiser
-      e.target.value = ''; 
-    }
-  };
-
-  // Effect para iniciar/continuar o processamento
+  // Effect Trigger: Process queue automatically whenever items are added or one finishes
   useEffect(() => {
-    if (mode === 'queue' && !isProcessing && !cancelRequested) {
+    if ((mode === 'queue' || mode === 'camera') && !isProcessing) {
       processNextInQueue();
     }
-  }, [queue, mode, isProcessing, cancelRequested]);
+  }, [queue, mode, isProcessing]);
 
-  const updateItemStatus = (id: string, status: QueueStatus, extra?: Partial<QueueItem>) => {
-    setQueue(prev => prev.map(item => 
-      item.id === id ? { ...item, status, ...extra } : item
-    ));
+  // Clean up stream on unmount
+  useEffect(() => {
+      return () => {
+          stopCamera();
+      };
+  }, []);
+
+  const updateItem = (id: string, updates: Partial<QueueItem>) => {
+    setQueue(prev => prev.map(item => item.id === id ? { ...item, ...updates } : item));
   };
 
   const processNextInQueue = async () => {
     const nextItem = queue.find(i => i.status === 'waiting');
-    
-    if (!nextItem) {
-      // Se não há mais itens esperando, verifica se acabou tudo
-      const hasActive = queue.some(i => i.status === 'processing' || i.status === 'saving');
-      if (!hasActive) {
-          // Tudo finalizado
-          // Pequeno delay para UX
-          setTimeout(() => setMode('summary'), 1000);
-      }
-      return;
-    }
+    if (!nextItem) return;
 
     setIsProcessing(true);
-    updateItemStatus(nextItem.id, 'processing');
+    updateItem(nextItem.id, { status: 'processing' });
 
     try {
-      if (cancelRequested) throw new Error("Cancelado pelo usuário");
-
-      // 1. Converter/Comprimir
       const base64 = await fileToBase64(nextItem.file);
-
-      // 2. Extrair Dados (Gemini)
       const rawData = await extractReceiptData(base64, nextItem.file.type);
       
-      if (cancelRequested) throw new Error("Cancelado pelo usuário");
-
-      // 3. Preparar Categoria
       const matchedCategory = categories.find(c => 
           c.name.toLowerCase() === rawData.suggested_category?.toLowerCase()
       ) || categories.find(c => c.is_default) || categories[0];
 
-      // 4. Salvar no Supabase (Auto Save)
-      updateItemStatus(nextItem.id, 'saving', { establishment: rawData.establishment });
+      updateItem(nextItem.id, { 
+          status: 'saving', 
+          establishment: rawData.establishment,
+          total_amount: rawData.total_amount,
+          date: rawData.date,
+          category_id: matchedCategory.id
+      });
 
-      const { error } = await supabase.from('receipts').insert({
+      const { data: insertedData, error } = await supabase.from('receipts').insert({
         establishment: rawData.establishment || 'Desconhecido',
         date: rawData.date || new Date().toISOString(),
         total_amount: rawData.total_amount || 0,
@@ -167,100 +247,243 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved }) =
         payment_method: rawData.payment_method,
         category_id: matchedCategory.id,
         items: rawData.items || [],
-        image_url: base64 // Salvando base64
-      });
+        image_url: base64
+      }).select().single();
 
       if (error) throw error;
 
-      updateItemStatus(nextItem.id, 'success');
+      updateItem(nextItem.id, { 
+          status: 'success', 
+          dbId: insertedData.id 
+      });
 
     } catch (error: any) {
       console.error(`Erro ao processar ${nextItem.file.name}:`, error);
-      updateItemStatus(nextItem.id, 'error', { 
+      updateItem(nextItem.id, { 
+          status: 'error', 
           errorMsg: error.message || "Falha desconhecida",
-          establishment: "Erro" 
+          establishment: "Erro no Processamento" 
       });
     } finally {
       setIsProcessing(false);
     }
   };
 
-  const handleCancel = () => {
-    setCancelRequested(true);
-    setMode('summary'); // Vai para o resumo do que já foi feito
+  const handleEditSave = async () => {
+      if (!editingItem || !editingItem.dbId) return;
+      setIsSavingEdit(true);
+      try {
+          const { error } = await supabase.from('receipts').update({
+              establishment: editingItem.establishment,
+              date: editingItem.date,
+              total_amount: editingItem.total_amount,
+              category_id: editingItem.category_id
+          }).eq('id', editingItem.dbId);
+
+          if (error) throw error;
+          
+          updateItem(editingItem.id, {
+              establishment: editingItem.establishment,
+              date: editingItem.date,
+              total_amount: editingItem.total_amount,
+              category_id: editingItem.category_id
+          });
+          setEditingItem(null);
+      } catch (e) {
+          alert("Erro ao salvar alterações.");
+      } finally {
+          setIsSavingEdit(false);
+      }
   };
 
-  const resetAll = () => {
-    setQueue([]);
-    setMode('upload');
-    setCancelRequested(false);
-    setIsProcessing(false);
+  const retryItem = (id: string) => {
+      updateItem(id, { status: 'waiting', errorMsg: undefined });
+  };
+
+  const deleteItem = async (item: QueueItem) => {
+      if (item.dbId) {
+          await supabase.from('receipts').delete().eq('id', item.dbId);
+      }
+      setQueue(prev => prev.filter(i => i.id !== item.id));
   };
 
   // --- RENDERIZADORES ---
 
-  if (mode === 'summary') {
-    return (
-      <div className="h-full flex flex-col items-center justify-center p-6 bg-white animate-in zoom-in duration-300">
-        <div className="text-center space-y-4 max-w-sm w-full">
-            
-            {processedCount > 0 ? (
-                <div className="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <CheckCircle size={40} />
-                </div>
-            ) : (
-                <div className="w-20 h-20 bg-gray-100 text-gray-400 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <FileText size={40} />
-                </div>
-            )}
+  // 1. EDIT MODAL
+  if (editingItem) {
+      return (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4 animate-in fade-in">
+              <div className="bg-white rounded-xl shadow-xl w-full max-w-sm overflow-hidden flex flex-col max-h-[90vh]">
+                  <div className="flex items-center justify-between p-4 border-b border-gray-100">
+                      <h3 className="font-bold text-gray-900">Corrigir Nota</h3>
+                      <button onClick={() => setEditingItem(null)} className="text-gray-500 hover:text-gray-800">
+                          <X size={20} />
+                      </button>
+                  </div>
+                  <div className="p-4 overflow-y-auto space-y-4">
+                      {/* Preview Image */}
+                       <div className="h-40 w-full bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden border border-gray-200">
+                            {editingItem.imagePreview ? (
+                                <img src={editingItem.imagePreview} className="h-full object-contain" alt="Nota" />
+                            ) : (
+                                <ImageIcon className="text-gray-400" />
+                            )}
+                        </div>
 
-            <h2 className="text-2xl font-bold text-gray-900">Processamento Finalizado</h2>
-            
-            <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 text-sm">
-                <div className="flex justify-between py-2 border-b border-gray-200">
-                    <span className="text-gray-600">Sucesso:</span>
-                    <span className="font-bold text-green-600">{processedCount} notas</span>
-                </div>
-                <div className="flex justify-between py-2">
-                    <span className="text-gray-600">Erros:</span>
-                    <span className="font-bold text-red-600">{errorCount} notas</span>
-                </div>
-            </div>
-
-            {errorCount > 0 && (
-                <p className="text-xs text-red-500 bg-red-50 p-2 rounded">
-                    As notas com erro não foram salvas. Tente enviá-las novamente.
-                </p>
-            )}
-
-            <div className="pt-4 space-y-3">
-                <button 
-                    onClick={onSaved}
-                    className="w-full bg-brand-600 text-white py-3 rounded-xl font-bold shadow-lg hover:bg-brand-700 flex items-center justify-center gap-2"
-                >
-                    Ver Notas Adicionadas <ArrowRight size={20} />
-                </button>
-                
-                <button 
-                    onClick={resetAll}
-                    className="w-full bg-white text-gray-600 border border-gray-200 py-3 rounded-xl font-medium hover:bg-gray-50"
-                >
-                    Adicionar Mais
-                </button>
-            </div>
-        </div>
-      </div>
-    );
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Estabelecimento</label>
+                        <input 
+                            type="text" 
+                            value={editingItem.establishment || ''} 
+                            onChange={(e) => setEditingItem({...editingItem, establishment: e.target.value})}
+                            className="w-full border-b border-gray-300 focus:border-brand-500 outline-none py-1 font-medium"
+                        />
+                      </div>
+                      <div className="flex gap-3">
+                         <div className="flex-1">
+                            <label className="block text-xs font-medium text-gray-500 mb-1">Data</label>
+                            <input 
+                                type="date" 
+                                value={editingItem.date || ''} 
+                                onChange={(e) => setEditingItem({...editingItem, date: e.target.value})}
+                                className="w-full border-b border-gray-300 focus:border-brand-500 outline-none py-1"
+                            />
+                         </div>
+                         <div className="flex-1">
+                            <label className="block text-xs font-medium text-gray-500 mb-1">Total (R$)</label>
+                            <input 
+                                type="number" 
+                                step="0.01"
+                                value={editingItem.total_amount || 0} 
+                                onChange={(e) => setEditingItem({...editingItem, total_amount: parseFloat(e.target.value)})}
+                                className="w-full border-b border-gray-300 focus:border-brand-500 outline-none py-1 font-bold text-brand-600"
+                            />
+                         </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-2">Categoria</label>
+                        <div className="grid grid-cols-2 gap-2">
+                             {categories.map(cat => (
+                                <button
+                                    key={cat.id}
+                                    onClick={() => setEditingItem({...editingItem, category_id: cat.id})}
+                                    className={clsx(
+                                        "text-xs px-2 py-2 rounded-md border transition-colors text-left truncate",
+                                        editingItem.category_id === cat.id 
+                                            ? "bg-brand-50 border-brand-500 text-brand-700 font-medium" 
+                                            : "bg-white border-gray-200 text-gray-600"
+                                    )}
+                                >
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-2 h-2 rounded-full flex-shrink-0" style={{backgroundColor: cat.color}}></div>
+                                        <span className="truncate">{cat.name}</span>
+                                    </div>
+                                </button>
+                             ))}
+                        </div>
+                      </div>
+                  </div>
+                  <div className="p-4 bg-gray-50 border-t border-gray-100 flex gap-2">
+                      <button 
+                        onClick={() => {
+                            if (confirm("Descartar esta nota?")) {
+                                deleteItem(editingItem);
+                                setEditingItem(null);
+                            }
+                        }}
+                        className="px-4 py-3 text-red-600 hover:bg-red-50 rounded-lg font-medium"
+                      >
+                          Excluir
+                      </button>
+                      <button 
+                        onClick={handleEditSave}
+                        disabled={isSavingEdit}
+                        className="flex-1 bg-brand-600 text-white py-3 rounded-lg font-semibold flex items-center justify-center gap-2 shadow-sm"
+                      >
+                          {isSavingEdit ? <Loader2 className="animate-spin" size={20} /> : <Save size={20} />}
+                          Salvar
+                      </button>
+                  </div>
+              </div>
+          </div>
+      );
   }
 
-  if (mode === 'queue') {
+  // 2. CAMERA MODE
+  if (mode === 'camera') {
+      return (
+          <div className="fixed inset-0 z-50 bg-black flex flex-col">
+              {/* Top Bar */}
+              <div className="absolute top-0 left-0 right-0 p-4 flex justify-between items-center z-10 bg-gradient-to-b from-black/50 to-transparent">
+                  <div className="text-white font-medium flex items-center gap-2">
+                       <span className="bg-brand-600 px-2 py-0.5 rounded text-xs">Modo Burst</span>
+                       {queue.length > 0 && <span>{queue.length} capturadas</span>}
+                  </div>
+                  <button onClick={finishCameraSession} className="bg-white/20 backdrop-blur-md text-white px-4 py-2 rounded-full text-sm font-semibold">
+                      Concluir
+                  </button>
+              </div>
+
+              {/* Video Feed */}
+              <div className="flex-1 relative flex items-center justify-center overflow-hidden">
+                   <video 
+                      ref={videoRef} 
+                      autoPlay 
+                      playsInline 
+                      muted 
+                      className="w-full h-full object-cover"
+                   />
+                   <canvas ref={canvasRef} className="hidden" />
+                   
+                   {/* Grid Overlay */}
+                   <div className="absolute inset-0 pointer-events-none opacity-20">
+                       <div className="w-full h-1/3 border-b border-white"></div>
+                       <div className="w-full h-1/3 border-b border-white top-1/3 absolute"></div>
+                       <div className="h-full w-1/3 border-r border-white left-0 absolute top-0"></div>
+                       <div className="h-full w-1/3 border-r border-white left-1/3 absolute top-0"></div>
+                   </div>
+
+                   {/* Flash Effect */}
+                   <div className={clsx("absolute inset-0 bg-white pointer-events-none transition-opacity duration-150", flashEffect ? "opacity-80" : "opacity-0")}></div>
+              </div>
+
+              {/* Bottom Bar (Shutter) */}
+              <div className="h-32 bg-black flex items-center justify-center relative">
+                  {/* Gallery/Prev Thumbnail (Optional placeholder) */}
+                  <div className="absolute left-6 bottom-10">
+                      {queue.length > 0 && queue[queue.length-1].imagePreview && (
+                          <div className="w-12 h-12 rounded-lg border-2 border-white overflow-hidden relative">
+                              <img src={queue[queue.length-1].imagePreview} className="w-full h-full object-cover" />
+                              <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                                  <span className="text-white text-xs font-bold">{queue.length}</span>
+                              </div>
+                          </div>
+                      )}
+                  </div>
+
+                  <button 
+                    onClick={takePhoto}
+                    className="w-20 h-20 rounded-full border-4 border-white flex items-center justify-center active:scale-95 transition-transform"
+                  >
+                      <div className="w-16 h-16 bg-white rounded-full"></div>
+                  </button>
+              </div>
+          </div>
+      );
+  }
+
+  // 3. QUEUE / SUMMARY LIST
+  if (mode === 'queue' || mode === 'summary') {
     return (
       <div className="h-full flex flex-col bg-gray-50">
         {/* Header da Fila */}
         <div className="bg-white p-6 shadow-sm z-10 sticky top-0 border-b border-gray-100">
-            <h2 className="text-lg font-bold text-gray-900 mb-2">
-                Processando {processedCount + errorCount + (isProcessing ? 1 : 0)} de {totalCount}
-            </h2>
+            <div className="flex justify-between items-center mb-2">
+                <h2 className="text-lg font-bold text-gray-900">
+                    Processando Notas
+                </h2>
+                {isProcessing && <span className="text-xs text-brand-600 font-medium animate-pulse flex items-center gap-1"><Loader2 size={12} className="animate-spin"/> IA trabalhando...</span>}
+            </div>
             
             {/* Barra de Progresso */}
             <div className="w-full bg-gray-200 h-2.5 rounded-full overflow-hidden mb-1">
@@ -269,7 +492,10 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved }) =
                     style={{ width: `${progressPercent}%` }}
                 ></div>
             </div>
-            <p className="text-right text-xs text-gray-400 font-medium">{Math.round(progressPercent)}%</p>
+            <div className="flex justify-between text-xs text-gray-400 mt-1">
+                 <span>{processedCount + errorCount} de {totalCount}</span>
+                 <span>{Math.round(progressPercent)}%</span>
+            </div>
         </div>
 
         {/* Lista da Fila */}
@@ -278,55 +504,94 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved }) =
                 <div 
                     key={item.id}
                     className={clsx(
-                        "bg-white p-3 rounded-xl border shadow-sm flex items-center gap-3 transition-all",
+                        "bg-white p-3 rounded-xl border shadow-sm flex items-center gap-3 transition-all relative overflow-hidden",
                         item.status === 'processing' || item.status === 'saving' ? "border-brand-300 ring-1 ring-brand-100" : "border-gray-100",
                         item.status === 'error' ? "border-red-200 bg-red-50" : ""
                     )}
                 >
-                    {/* Ícone de Status */}
-                    <div className="flex-shrink-0">
-                        {item.status === 'waiting' && <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center"><Pause size={16} className="text-gray-400" /></div>}
-                        {(item.status === 'processing' || item.status === 'saving') && <Loader2 size={24} className="text-brand-600 animate-spin" />}
-                        {item.status === 'success' && <CheckCircle size={24} className="text-green-500" />}
-                        {item.status === 'error' && <XCircle size={24} className="text-red-500" />}
+                    {/* Preview Image Thumb */}
+                    <div className="w-12 h-12 rounded-lg bg-gray-100 flex-shrink-0 overflow-hidden border border-gray-200">
+                        {item.imagePreview ? (
+                            <img src={item.imagePreview} className="w-full h-full object-cover" />
+                        ) : (
+                            <div className="flex items-center justify-center h-full"><FileText size={20} className="text-gray-300"/></div>
+                        )}
                     </div>
 
-                    {/* Texto */}
+                    {/* Info */}
                     <div className="flex-1 min-w-0">
-                        <p className={clsx("text-sm font-medium truncate", item.status === 'error' ? "text-red-700" : "text-gray-800")}>
-                            {item.establishment || item.file.name}
+                        <p className={clsx("text-sm font-medium truncate", item.status === 'error' ? "text-red-700" : "text-gray-900")}>
+                            {item.status === 'success' ? (item.establishment || "Estabelecimento") : (item.status === 'error' ? "Erro na leitura" : "Processando...")}
                         </p>
-                        <p className="text-xs text-gray-500">
-                            {item.status === 'waiting' && 'Na fila...'}
-                            {item.status === 'processing' && 'Lendo imagem...'}
-                            {item.status === 'saving' && 'Salvando...'}
-                            {item.status === 'success' && 'Concluído'}
-                            {item.status === 'error' && (item.errorMsg || 'Erro')}
-                        </p>
+                        <div className="flex items-center gap-2 text-xs">
+                             {item.status === 'success' && (
+                                 <span className="font-bold text-brand-600">R$ {item.total_amount?.toFixed(2)}</span>
+                             )}
+                             <span className="text-gray-400">
+                                {item.status === 'waiting' && 'Na fila...'}
+                                {(item.status === 'processing' || item.status === 'saving') && 'Lendo...'}
+                                {item.status === 'error' && (item.errorMsg || 'Falha')}
+                            </span>
+                        </div>
                     </div>
 
-                    {/* Tamanho Arquivo */}
-                    <div className="text-xs text-gray-400">
-                        {(item.file.size / 1024 / 1024).toFixed(1)}MB
+                    {/* Actions */}
+                    <div className="flex items-center gap-2">
+                         {item.status === 'success' && (
+                             <button 
+                                onClick={() => setEditingItem(item)}
+                                className="p-2 text-gray-400 hover:text-brand-600 hover:bg-brand-50 rounded-full transition-colors"
+                             >
+                                 <Edit2 size={18} />
+                             </button>
+                         )}
+                         {item.status === 'error' && (
+                             <button 
+                                onClick={() => retryItem(item.id)}
+                                className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors"
+                             >
+                                 <RotateCcw size={18} />
+                             </button>
+                         )}
+                         {(item.status === 'processing' || item.status === 'saving') && (
+                             <Loader2 size={18} className="text-brand-500 animate-spin" />
+                         )}
+                         {item.status === 'waiting' && (
+                             <div className="w-2 h-2 rounded-full bg-gray-300"></div>
+                         )}
                     </div>
                 </div>
             ))}
+
+            {/* Empty State in Queue */}
+            {queue.length === 0 && (
+                 <div className="text-center text-gray-400 py-10">
+                     <p>Nenhuma nota na fila.</p>
+                 </div>
+            )}
         </div>
 
         {/* Footer Actions */}
-        <div className="p-4 bg-white border-t border-gray-100 sticky bottom-0">
-            <button 
-                onClick={handleCancel}
-                className="w-full border border-red-200 text-red-600 bg-red-50 py-3 rounded-xl font-medium hover:bg-red-100 transition-colors flex items-center justify-center gap-2"
+        <div className="p-4 bg-white border-t border-gray-100 sticky bottom-0 flex gap-3">
+             <button 
+                onClick={() => setMode('upload')}
+                className="flex-1 py-3 text-gray-600 font-medium hover:bg-gray-50 rounded-xl transition-colors border border-gray-200"
             >
-                <X size={20} /> Cancelar Processamento
+                Adicionar Mais
+            </button>
+            <button 
+                onClick={onSaved}
+                className="flex-1 bg-brand-600 text-white py-3 rounded-xl font-bold shadow-lg hover:bg-brand-700 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={isProcessing || queue.some(i => i.status === 'processing' || i.status === 'saving')}
+            >
+                {isProcessing ? 'Processando...' : 'Concluir'} <ArrowRight size={20} />
             </button>
         </div>
       </div>
     );
   }
 
-  // MODO: UPLOAD (Inicial)
+  // 4. MODO: UPLOAD (Inicial)
   return (
     <div className="h-full flex flex-col items-center justify-center p-6 bg-gradient-to-b from-gray-50 to-white relative overflow-hidden">
       
@@ -337,7 +602,7 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved }) =
       <div className="w-full max-w-sm space-y-6 z-10">
         <div className="text-center mb-8">
             <h2 className="text-2xl font-bold text-gray-900">Adicionar Despesas</h2>
-            <p className="text-gray-500 text-sm mt-2">Escolha como deseja enviar seus comprovantes para a IA.</p>
+            <p className="text-gray-500 text-sm mt-2">Escolha como deseja enviar seus comprovantes.</p>
         </div>
 
         {/* Inputs Ocultos */}
@@ -349,27 +614,16 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved }) =
             ref={fileInputRef}
             onChange={handleFilesSelect}
         />
-        <input 
-            type="file" 
-            accept="image/*"
-            capture="environment"
-            className="hidden" 
-            ref={cameraInputRef}
-            onChange={handleFilesSelect}
-        />
 
-        {/* Botão Upload em Massa */}
+        {/* Botão Câmera Direta (Custom WebRTC) */}
         <button 
-            onClick={() => fileInputRef.current?.click()}
-            className="w-full group bg-white border-2 border-dashed border-gray-300 hover:border-brand-400 hover:bg-brand-50 p-6 rounded-2xl transition-all duration-200 flex flex-col items-center justify-center gap-3 shadow-sm hover:shadow-md"
+            onClick={startCamera}
+            className="w-full bg-brand-600 text-white p-6 rounded-2xl shadow-xl shadow-brand-500/30 hover:bg-brand-700 active:scale-95 transition-all flex flex-col items-center justify-center gap-2 group relative overflow-hidden"
         >
-          <div className="w-14 h-14 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
-             <Upload size={28} />
-          </div>
-          <div className="text-center">
-            <h3 className="font-semibold text-gray-800">Selecionar Arquivos</h3>
-            <p className="text-xs text-gray-500 mt-1">PDFs ou Imagens (Múltiplos)</p>
-          </div>
+          <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+          <Camera size={32} className="mb-1" />
+          <span className="font-bold text-lg">Câmera Rápida</span>
+          <span className="text-xs text-brand-100 opacity-80">Tirar múltiplas fotos sequenciais</span>
         </button>
 
         <div className="flex items-center gap-4 text-gray-300">
@@ -378,19 +632,19 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved }) =
             <div className="h-px bg-gray-200 flex-1"></div>
         </div>
 
-        {/* Botão Câmera Direta */}
+        {/* Botão Upload em Massa */}
         <button 
-            onClick={() => cameraInputRef.current?.click()}
-            className="w-full bg-brand-600 text-white p-5 rounded-2xl shadow-xl shadow-brand-500/30 hover:bg-brand-700 active:scale-95 transition-all flex items-center justify-center gap-3"
+            onClick={() => fileInputRef.current?.click()}
+            className="w-full bg-white border border-gray-200 hover:border-brand-300 hover:bg-gray-50 p-4 rounded-xl transition-all duration-200 flex items-center justify-center gap-3 text-gray-700 shadow-sm"
         >
-          <Camera size={24} />
-          <span className="font-bold text-lg">Tirar Foto</span>
+           <Upload size={20} />
+           <span className="font-semibold">Upload de Arquivos</span>
         </button>
         
-        <div className="bg-yellow-50 border border-yellow-100 rounded-lg p-3 flex gap-3 items-start mt-4">
-            <AlertTriangle size={16} className="text-yellow-600 flex-shrink-0 mt-0.5" />
-            <p className="text-[10px] text-yellow-700 leading-tight">
-                As notas serão processadas e salvas automaticamente. Você poderá editá-las depois na aba "Notas".
+        <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 flex gap-3 items-start mt-4">
+            <Zap size={16} className="text-blue-600 flex-shrink-0 mt-0.5" />
+            <p className="text-[10px] text-blue-700 leading-tight">
+                Dica: No modo Câmera Rápida, as fotos começam a ser processadas pela IA assim que você as tira, economizando seu tempo.
             </p>
         </div>
       </div>
