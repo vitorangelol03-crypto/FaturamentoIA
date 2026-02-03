@@ -17,6 +17,7 @@ create table public.receipts (
   date date not null,
   total_amount numeric not null,
   cnpj text,
+  location text default 'Caratinga', -- 'Caratinga' or 'Ponte Nova'
   category_id uuid references public.categories(id) on delete set null,
   payment_method text,
   items jsonb default '[]'::jsonb,

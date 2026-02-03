@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Receipt, Category, ViewMode, PeriodFilter } from '../types';
-import { LayoutGrid, List, AlignJustify, Search, ChevronDown, ChevronUp, Image as ImageIcon, Filter, Edit2, X, Save, Loader2, Download, Maximize2, Calendar, CreditCard, Tag, FileText } from 'lucide-react';
+import { LayoutGrid, List, AlignJustify, Search, ChevronDown, ChevronUp, Image as ImageIcon, Filter, Edit2, X, Save, Loader2, Download, Maximize2, Calendar, CreditCard, Tag, FileText, MapPin } from 'lucide-react';
 import { clsx } from 'clsx';
 import { generatePDFReport, generateSingleReceiptPDF } from '../services/pdfService';
 import { supabase } from '../services/supabaseClient';
@@ -103,7 +103,8 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
                   establishment: editingReceipt.establishment,
                   date: editingReceipt.date,
                   total_amount: editingReceipt.total_amount,
-                  category_id: editingReceipt.category_id
+                  category_id: editingReceipt.category_id,
+                  location: editingReceipt.location
               })
               .eq('id', editingReceipt.id);
 
@@ -199,16 +200,26 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
                                     R$ {Number(viewingReceipt.total_amount).toFixed(2)}
                                 </div>
                             </div>
-                            {viewingReceipt.payment_method && (
-                                <div className="bg-gray-50 p-3 rounded-xl border border-gray-100 col-span-2">
+                            <div className="bg-gray-50 p-3 rounded-xl border border-gray-100 col-span-2 flex items-center justify-between">
+                                <div>
                                     <div className="flex items-center gap-2 text-gray-400 text-xs mb-1 uppercase font-semibold">
-                                        <Tag size={12} /> Forma de Pagamento
+                                        <MapPin size={12} /> Unidade
                                     </div>
                                     <div className="font-medium text-gray-900">
-                                        {viewingReceipt.payment_method}
+                                        {viewingReceipt.location || 'Caratinga'}
                                     </div>
                                 </div>
-                            )}
+                                {viewingReceipt.payment_method && (
+                                    <div className="text-right">
+                                        <div className="flex items-center justify-end gap-2 text-gray-400 text-xs mb-1 uppercase font-semibold">
+                                            <Tag size={12} /> Pagamento
+                                        </div>
+                                        <div className="font-medium text-gray-900">
+                                            {viewingReceipt.payment_method}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
                         </div>
 
                         {/* Items List */}
@@ -307,6 +318,20 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
                                     className="w-full bg-white text-gray-900 border-b border-gray-300 focus:border-brand-500 outline-none py-1 text-lg font-medium"
                                 />
                             </div>
+                            
+                            {/* Seletor de Localização na Edição */}
+                            <div>
+                                <label className="block text-xs font-medium text-gray-500 mb-1">Unidade / Empresa</label>
+                                <select 
+                                    value={editingReceipt.location || 'Caratinga'}
+                                    onChange={(e) => setEditingReceipt({...editingReceipt, location: e.target.value})}
+                                    className="w-full bg-white text-gray-900 border-b border-gray-300 focus:border-brand-500 outline-none py-1 font-medium"
+                                >
+                                    <option value="Caratinga">Caratinga</option>
+                                    <option value="Ponte Nova">Ponte Nova</option>
+                                </select>
+                            </div>
+
                             <div className="flex gap-4">
                                 <div className="flex-1">
                                     <label className="block text-xs font-medium text-gray-500 mb-1">Data</label>
@@ -481,25 +506,12 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
                                 </div>
                                 <div className="p-3">
                                     <p className="font-semibold text-gray-900 text-sm truncate">{receipt.establishment}</p>
-                                    <p className="text-gray-500 text-xs">{new Date(receipt.date).toLocaleDateString('pt-BR')}</p>
                                     <div className="flex items-center justify-between mt-1">
+                                        <p className="text-gray-500 text-xs">{new Date(receipt.date).toLocaleDateString('pt-BR')}</p>
+                                        <span className="text-[9px] px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded-full">{receipt.location || 'Caratinga'}</span>
+                                    </div>
+                                    <div className="flex items-center justify-between mt-2">
                                          <p className="font-bold text-brand-600">R$ {Number(receipt.total_amount).toFixed(2)}</p>
-                                         <div className="flex gap-1">
-                                            <button 
-                                                onClick={(e) => handleDownloadSingle(e, receipt)}
-                                                className="p-1.5 bg-gray-100 text-gray-600 rounded-full hover:bg-brand-50 hover:text-brand-600 transition-colors"
-                                                title="Baixar PDF"
-                                            >
-                                                <Download size={12} />
-                                            </button>
-                                            <button 
-                                                onClick={(e) => handleEditClick(e, receipt)}
-                                                className="p-1.5 bg-gray-100 text-gray-600 rounded-full hover:bg-brand-50 hover:text-brand-600 transition-colors"
-                                                title="Editar"
-                                            >
-                                                <Edit2 size={12} />
-                                            </button>
-                                         </div>
                                     </div>
                                 </div>
                             </div>
@@ -518,7 +530,10 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
                                         <div className="w-1 h-8 rounded-full" style={{backgroundColor: category?.color}}></div>
                                         <div className="truncate">
                                             <p className="font-medium text-sm text-gray-900 truncate">{receipt.establishment}</p>
-                                            <p className="text-xs text-gray-500">{new Date(receipt.date).toLocaleDateString('pt-BR')}</p>
+                                            <div className="flex gap-2 items-center">
+                                                <p className="text-xs text-gray-500">{new Date(receipt.date).toLocaleDateString('pt-BR')}</p>
+                                                <span className="text-[10px] text-gray-400">• {receipt.location || 'Caratinga'}</span>
+                                            </div>
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-3">
@@ -532,6 +547,7 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
                                             <div className="grid grid-cols-2 gap-2 flex-1">
                                                 <p><span className="text-gray-500">Categoria:</span> {category?.name}</p>
                                                 <p><span className="text-gray-500">Pagamento:</span> {receipt.payment_method || '-'}</p>
+                                                <p><span className="text-gray-500">Unidade:</span> {receipt.location || 'Caratinga'}</p>
                                             </div>
                                             <div className="flex gap-2">
                                                  <button 
@@ -613,9 +629,14 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
                                 <div className="flex justify-between items-end mt-1">
                                     <div>
                                         <p className="text-xs text-gray-500">{new Date(receipt.date).toLocaleDateString('pt-BR')}</p>
-                                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium mt-1" style={{ backgroundColor: `${category?.color}20`, color: category?.color }}>
-                                            {category?.name}
-                                        </span>
+                                        <div className="flex gap-2 mt-1">
+                                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium" style={{ backgroundColor: `${category?.color}20`, color: category?.color }}>
+                                                {category?.name}
+                                            </span>
+                                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-600 border border-gray-200">
+                                                {receipt.location || 'Caratinga'}
+                                            </span>
+                                        </div>
                                     </div>
                                 </div>
                             </div>

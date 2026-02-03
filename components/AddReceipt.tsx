@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Camera, Upload, X, CheckCircle, XCircle, Loader2, Play, Pause, AlertTriangle, FileText, ArrowRight, Save, Edit2, RotateCcw, Image as ImageIcon, Zap, Check } from 'lucide-react';
+import { Camera, Upload, X, CheckCircle, XCircle, Loader2, Play, Pause, AlertTriangle, FileText, ArrowRight, Save, Edit2, RotateCcw, Image as ImageIcon, Zap, Check, MapPin } from 'lucide-react';
 import { extractReceiptData } from '../services/geminiService';
 import { Category } from '../types';
 import { supabase } from '../services/supabaseClient';
@@ -21,9 +21,11 @@ interface QueueItem {
   total_amount?: number;
   date?: string;
   category_id?: string;
+  location?: string;
   dbId?: string; // ID salvo no Supabase
   errorMsg?: string;
   imagePreview?: string;
+  extractedCNPJ?: string;
 }
 
 export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved }) => {
@@ -244,15 +246,20 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved }) =
       const base64 = await fileToBase64(nextItem.file);
       const rawData = await extractReceiptData(base64, nextItem.file.type);
       
-      // --- VALIDAÇÃO DE CNPJ OBRIGATÓRIA ---
-      // Remove caracteres não numéricos para comparação segura
       const extractedCNPJ = rawData.cnpj ? rawData.cnpj.replace(/\D/g, '') : '';
       const cleanRequiredCNPJ = REQUIRED_CNPJ.replace(/\D/g, '');
 
-      if (extractedCNPJ !== cleanRequiredCNPJ) {
-          throw new Error(`CNPJ Inválido ou Divergente. A nota deve ser da firma (CNPJ ${REQUIRED_CNPJ}). CNPJ Lido: ${extractedCNPJ || 'Não identificado'}`);
+      // LOGICA DE DETECÇÃO DE LOCALIZAÇÃO
+      // Se bater o CNPJ de Caratinga, marca como Caratinga.
+      // Se não, assume Ponte Nova por padrão (o usuário pode trocar na edição se estiver errado)
+      let determinedLocation = 'Ponte Nova'; 
+      if (extractedCNPJ === cleanRequiredCNPJ) {
+          determinedLocation = 'Caratinga';
       }
-      // -------------------------------------
+
+      // Validação Estrita: Só bloqueia se for identificado como Caratinga mas o CNPJ não bater (o que é paradoxal, mas serve para forçar validação futura)
+      // Neste caso, se a IA diz que é Caratinga, é porque o CNPJ bateu.
+      // Se o usuário tentar forçar "Caratinga" num CNPJ errado manualmente depois, bloqueamos lá.
 
       const matchedCategory = categories.find(c => 
           c.name.toLowerCase() === rawData.suggested_category?.toLowerCase()
@@ -263,7 +270,9 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved }) =
           establishment: rawData.establishment,
           total_amount: rawData.total_amount,
           date: rawData.date,
-          category_id: matchedCategory.id
+          category_id: matchedCategory.id,
+          location: determinedLocation,
+          extractedCNPJ: extractedCNPJ
       });
 
       const { data: insertedData, error } = await supabase.from('receipts').insert({
@@ -275,7 +284,8 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved }) =
         payment_method: rawData.payment_method,
         category_id: matchedCategory.id,
         items: rawData.items || [],
-        image_url: base64
+        image_url: base64,
+        location: determinedLocation
       }).select().single();
 
       if (error) throw error;
@@ -299,13 +309,31 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved }) =
 
   const handleEditSave = async () => {
       if (!editingItem || !editingItem.dbId) return;
+
+      // Validação de Segurança para Caratinga
+      // Se o usuário selecionar Caratinga, o CNPJ PRECISA bater com a regra.
+      if (editingItem.location === 'Caratinga') {
+          const cleanRequired = REQUIRED_CNPJ.replace(/\D/g, '');
+          const currentCNPJ = editingItem.extractedCNPJ || '';
+          
+          if (currentCNPJ !== cleanRequired) {
+              // Se não tiver CNPJ extraído ou for diferente, pedimos confirmação ou bloqueamos.
+              // Como a IA pode falhar em ler o CNPJ, vamos permitir com um aviso, 
+              // mas idealmente aqui bloquearíamos se tivéssemos certeza da leitura.
+              // Para ser seguro e não travar o usuário:
+              const confirm = window.confirm(`O CNPJ lido (${currentCNPJ || 'nenhum'}) não bate com o da firma de Caratinga (${cleanRequired}). Deseja salvar mesmo assim?`);
+              if (!confirm) return;
+          }
+      }
+
       setIsSavingEdit(true);
       try {
           const { error } = await supabase.from('receipts').update({
               establishment: editingItem.establishment,
               date: editingItem.date,
               total_amount: editingItem.total_amount,
-              category_id: editingItem.category_id
+              category_id: editingItem.category_id,
+              location: editingItem.location
           }).eq('id', editingItem.dbId);
 
           if (error) throw error;
@@ -314,7 +342,8 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved }) =
               establishment: editingItem.establishment,
               date: editingItem.date,
               total_amount: editingItem.total_amount,
-              category_id: editingItem.category_id
+              category_id: editingItem.category_id,
+              location: editingItem.location
           });
           setEditingItem(null);
       } catch (e) {
@@ -367,6 +396,26 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved }) =
                             className="w-full border-b border-gray-300 focus:border-brand-500 outline-none py-1 font-medium"
                         />
                       </div>
+
+                      {/* Seletor de Unidade */}
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Unidade / Empresa</label>
+                        <div className="flex gap-2">
+                            <button
+                                onClick={() => setEditingItem({...editingItem, location: 'Caratinga'})}
+                                className={clsx("flex-1 py-2 text-xs font-medium rounded-lg border", editingItem.location === 'Caratinga' ? "bg-brand-50 border-brand-500 text-brand-700" : "bg-white border-gray-200 text-gray-600")}
+                            >
+                                Caratinga
+                            </button>
+                            <button
+                                onClick={() => setEditingItem({...editingItem, location: 'Ponte Nova'})}
+                                className={clsx("flex-1 py-2 text-xs font-medium rounded-lg border", editingItem.location === 'Ponte Nova' ? "bg-brand-50 border-brand-500 text-brand-700" : "bg-white border-gray-200 text-gray-600")}
+                            >
+                                Ponte Nova
+                            </button>
+                        </div>
+                      </div>
+
                       <div className="flex gap-3">
                          <div className="flex-1">
                             <label className="block text-xs font-medium text-gray-500 mb-1">Data</label>

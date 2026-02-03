@@ -20,6 +20,7 @@ export interface Receipt {
   category_id: string;
   receipt_number?: string;
   cnpj?: string;
+  location?: string; // 'Caratinga' | 'Ponte Nova'
   payment_method?: string;
   items: ReceiptItem[];
   image_url?: string; // Storing Base64 for this demo to avoid Storage bucket setup

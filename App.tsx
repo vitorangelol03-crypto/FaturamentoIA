@@ -13,9 +13,20 @@ export default function App() {
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [categories, setCategories] = useState<Category[]>(DEFAULT_CATEGORIES);
   const [loading, setLoading] = useState(true);
+  
+  // Filtro Global de Empresa ('all', 'Caratinga', 'Ponte Nova')
+  // Persiste a escolha no localStorage para não resetar ao recarregar
+  const [selectedLocation, setSelectedLocation] = useState<string>(() => {
+      return localStorage.getItem('smartreceipts_location') || 'all';
+  });
 
-  // Modified to accept a showLoading parameter (default true)
-  const fetchData = async (showLoading = true) => {
+  const handleLocationChange = (loc: string) => {
+      setSelectedLocation(loc);
+      localStorage.setItem('smartreceipts_location', loc);
+      fetchData(true, loc); // Recarrega dados filtrados
+  };
+
+  const fetchData = async (showLoading = true, locationFilter = selectedLocation) => {
     try {
       if (showLoading) setLoading(true);
       
@@ -25,8 +36,15 @@ export default function App() {
         setCategories(catData);
       }
 
-      // Fetch Receipts
-      const { data: recData } = await supabase.from('receipts').select('*').order('date', { ascending: false });
+      // Fetch Receipts with optional filter
+      let query = supabase.from('receipts').select('*').order('date', { ascending: false });
+      
+      if (locationFilter !== 'all') {
+          query = query.eq('location', locationFilter);
+      }
+
+      const { data: recData } = await query;
+      
       if (recData) {
         setReceipts(recData as any);
       }
@@ -56,7 +74,12 @@ export default function App() {
 
   return (
     <div className="flex justify-center bg-gray-100 min-h-screen font-sans">
-      <Layout currentTab={currentTab} onTabChange={setCurrentTab}>
+      <Layout 
+        currentTab={currentTab} 
+        onTabChange={setCurrentTab}
+        selectedLocation={selectedLocation}
+        onLocationChange={handleLocationChange}
+      >
         {currentTab === 'dashboard' && <Dashboard receipts={receipts} categories={categories} />}
         {currentTab === 'receipts' && (
             <ReceiptList 
@@ -69,7 +92,7 @@ export default function App() {
         {currentTab === 'settings' && (
             <Settings 
                 categories={categories} 
-                refreshCategories={() => fetchData(false)} // Pass silent refresh
+                refreshCategories={() => fetchData(false)} 
                 receipts={receipts}
             />
         )}
