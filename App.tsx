@@ -53,8 +53,9 @@ export default function App() {
 
     try {
       setLoadingData(true);
+      const isAdmin = user.role === 'admin' || user.username === 'zoork22';
       
-      // Fetch Categories: Padrão OU do usuário
+      // Fetch Categories: Padrão OU do usuário OU todas se for admin (opcional, aqui mantemos foco nas do user + default)
       // query: is_default = true OR user_id = user.id
       const { data: catData } = await supabase
         .from('categories')
@@ -66,12 +67,18 @@ export default function App() {
         setCategories(catData);
       }
 
-      // Fetch Receipts: Apenas do usuário
+      // Fetch Receipts
       let query = supabase
         .from('receipts')
         .select('*')
-        .eq('user_id', user.id)
         .order('date', { ascending: false });
+      
+      // LOGICA CRÍTICA:
+      // Se NÃO for admin, filtra rigorosamente pelo ID do usuário.
+      // Se FOR admin, não aplica filtro de user_id, mostrando notas órfãs (antigas) e de outros users.
+      if (!isAdmin) {
+          query = query.eq('user_id', user.id);
+      }
       
       if (selectedLocation !== 'all') {
           query = query.eq('location', selectedLocation);
@@ -115,7 +122,10 @@ export default function App() {
       >
         {/* Header Extra para Logout/User Info - Inserido no topo do children */}
         <div className="px-4 pt-2 pb-0 flex justify-between items-center bg-gray-50 text-xs text-gray-500">
-             <span>Olá, <strong>{user.full_name.split(' ')[0]}</strong></span>
+             <div className="flex items-center gap-2">
+                <span>Olá, <strong>{user.full_name.split(' ')[0]}</strong></span>
+                {user.role === 'admin' && <span className="bg-brand-100 text-brand-700 px-1.5 py-0.5 rounded text-[10px] font-bold">ADMIN</span>}
+             </div>
              <button onClick={handleLogout} className="flex items-center gap-1 text-red-400 hover:text-red-600">
                 <LogOut size={12} /> Sair
              </button>
@@ -139,6 +149,7 @@ export default function App() {
                 refreshCategories={fetchData} 
                 receipts={receipts}
                 userId={user.id}
+                isAdmin={user.role === 'admin' || user.username === 'zoork22'}
             />
         )}
       </Layout>

@@ -8,9 +8,10 @@ interface SettingsProps {
   receipts: Receipt[];
   refreshCategories: () => void;
   userId: string;
+  isAdmin?: boolean;
 }
 
-export const Settings: React.FC<SettingsProps> = ({ categories, receipts, refreshCategories, userId }) => {
+export const Settings: React.FC<SettingsProps> = ({ categories, receipts, refreshCategories, userId, isAdmin }) => {
   const [newCatName, setNewCatName] = useState('');
   const [newCatColor, setNewCatColor] = useState('#6366F1');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -56,11 +57,21 @@ export const Settings: React.FC<SettingsProps> = ({ categories, receipts, refres
   };
 
   const executeClearData = async (period: 'current_month' | 'last_month' | 'last_3_months' | 'all') => {
-      // Remove window.confirm to avoid blocking UI issues, relying on the modal choice as confirmation.
       setActiveDeleteAction(period);
 
       try {
-          let query = supabase.from('receipts').delete().eq('user_id', userId);
+          let query = supabase.from('receipts').delete();
+          
+          // Se não for admin, restringe ao próprio usuário.
+          // Se for admin, a query deleta qualquer nota que corresponda aos critérios de data (perigoso, mas poderoso).
+          if (!isAdmin) {
+             query = query.eq('user_id', userId);
+          } else {
+             // Opcional: Se for admin, talvez queira deletar APENAS as que não tem dono ou as dele?
+             // Por enquanto, "Limpar Notas" para admin limpará TUDO no banco que bate com a data.
+             // Isso permite limpar as notas antigas (user_id = null).
+          }
+
           const now = new Date();
           let startDate: Date | null = null;
           let endDate: Date | null = null;
@@ -116,7 +127,7 @@ export const Settings: React.FC<SettingsProps> = ({ categories, receipts, refres
             <BarChart2 size={24} />
         </div>
         <div>
-            <p className="text-sm text-gray-500">Uso do Sistema</p>
+            <p className="text-sm text-gray-500">Uso do Sistema {isAdmin ? '(Global)' : ''}</p>
             <p className="font-bold text-gray-900">{receipts.length} notas processadas</p>
         </div>
       </div>
@@ -186,7 +197,7 @@ export const Settings: React.FC<SettingsProps> = ({ categories, receipts, refres
         </button>
         <p className="text-[10px] text-gray-400 text-center pt-1">
             <AlertTriangle size={10} className="inline mr-1" />
-            Atenção: A limpeza de dados remove permanentemente os registros.
+            Atenção: A limpeza de dados remove permanentemente os registros {isAdmin ? 'de TODOS os usuários' : 'da sua conta'}.
         </p>
       </div>
 
@@ -197,7 +208,7 @@ export const Settings: React.FC<SettingsProps> = ({ categories, receipts, refres
                 <div className="bg-red-50 p-4 border-b border-red-100 flex justify-between items-center">
                     <h3 className="font-bold text-red-700 flex items-center gap-2">
                         <Eraser size={20} />
-                        Limpar Notas
+                        Limpar Notas {isAdmin && '(Modo Admin)'}
                     </h3>
                     <button onClick={() => setShowDeleteModal(false)} className="text-red-400 hover:text-red-700">
                         <X size={24} />
