@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Camera, Upload, X, CheckCircle, XCircle, Loader2, Play, Pause, AlertTriangle, FileText, ArrowRight, Save, Edit2, RotateCcw, Image as ImageIcon, Zap } from 'lucide-react';
+import { Camera, Upload, X, CheckCircle, XCircle, Loader2, Play, Pause, AlertTriangle, FileText, ArrowRight, Save, Edit2, RotateCcw, Image as ImageIcon, Zap, Check } from 'lucide-react';
 import { extractReceiptData } from '../services/geminiService';
 import { Category } from '../types';
 import { supabase } from '../services/supabaseClient';
@@ -51,6 +51,9 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved }) =
   const progressPercent = totalCount > 0 
     ? ((processedCount + errorCount) / totalCount) * 100 
     : 0;
+  
+  // Verifica se tudo que estava na fila já foi processado (sucesso ou erro)
+  const isQueueFinished = queue.length > 0 && !queue.some(i => ['waiting', 'processing', 'saving'].includes(i.status));
 
   // --- CAMERA FUNCTIONS ---
 
@@ -483,12 +486,13 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved }) =
                     Processando Notas
                 </h2>
                 {isProcessing && <span className="text-xs text-brand-600 font-medium animate-pulse flex items-center gap-1"><Loader2 size={12} className="animate-spin"/> IA trabalhando...</span>}
+                {isQueueFinished && <span className="text-xs text-green-600 font-bold flex items-center gap-1"><Check size={14} /> Concluído</span>}
             </div>
             
             {/* Barra de Progresso */}
             <div className="w-full bg-gray-200 h-2.5 rounded-full overflow-hidden mb-1">
                 <div 
-                    className="bg-brand-600 h-full transition-all duration-500 ease-out"
+                    className={clsx("h-full transition-all duration-500 ease-out", isQueueFinished ? "bg-green-500" : "bg-brand-600")}
                     style={{ width: `${progressPercent}%` }}
                 ></div>
             </div>
@@ -499,7 +503,7 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved }) =
         </div>
 
         {/* Lista da Fila */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-3 pb-24">
+        <div className="flex-1 overflow-y-auto p-4 space-y-3 pb-32">
             {queue.map((item) => (
                 <div 
                     key={item.id}
@@ -572,20 +576,45 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved }) =
         </div>
 
         {/* Footer Actions */}
-        <div className="p-4 bg-white border-t border-gray-100 sticky bottom-0 flex gap-3">
-             <button 
-                onClick={() => setMode('upload')}
-                className="flex-1 py-3 text-gray-600 font-medium hover:bg-gray-50 rounded-xl transition-colors border border-gray-200"
-            >
-                Adicionar Mais
-            </button>
-            <button 
-                onClick={onSaved}
-                className="flex-1 bg-brand-600 text-white py-3 rounded-xl font-bold shadow-lg hover:bg-brand-700 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                disabled={isProcessing || queue.some(i => i.status === 'processing' || i.status === 'saving')}
-            >
-                {isProcessing ? 'Processando...' : 'Concluir'} <ArrowRight size={20} />
-            </button>
+        <div className="p-4 bg-white border-t border-gray-100 sticky bottom-0 z-20 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+             {isQueueFinished ? (
+                 <div className="animate-in slide-in-from-bottom-2 fade-in space-y-3">
+                     <div className="bg-green-50 text-green-700 px-4 py-2 rounded-lg text-sm flex items-center justify-center gap-2">
+                        <CheckCircle size={16} />
+                        <span className="font-medium">Processamento finalizado!</span>
+                     </div>
+                     <button 
+                        onClick={onSaved}
+                        className="w-full bg-green-600 text-white py-4 rounded-xl font-bold shadow-lg shadow-green-500/30 hover:bg-green-700 flex items-center justify-center gap-2 transform active:scale-95 transition-all text-lg"
+                    >
+                        <Save size={24} />
+                        Salvar e Finalizar
+                    </button>
+                    <button 
+                        onClick={() => setMode('upload')}
+                        className="w-full text-center text-gray-500 text-sm font-medium hover:text-brand-600 py-1"
+                    >
+                        Adicionar mais notas
+                    </button>
+                 </div>
+             ) : (
+                <div className="flex gap-3">
+                    <button 
+                        onClick={() => setMode('upload')}
+                        className="flex-1 py-3 text-gray-600 font-medium hover:bg-gray-50 rounded-xl transition-colors border border-gray-200"
+                    >
+                        Adicionar Mais
+                    </button>
+                    <button 
+                        onClick={onSaved}
+                        className="flex-1 bg-gray-100 text-gray-400 py-3 rounded-xl font-bold flex items-center justify-center gap-2 cursor-not-allowed"
+                        disabled={true}
+                    >
+                        <Loader2 size={20} className="animate-spin" />
+                        Processando...
+                    </button>
+                </div>
+             )}
         </div>
       </div>
     );
