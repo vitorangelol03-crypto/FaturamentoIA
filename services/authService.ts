@@ -25,7 +25,7 @@ export const authService = {
 
       const passwordHash = await hashPassword(passwordPlain);
 
-      // Insere como 'pending' por padrão (definido no banco ou explícito aqui)
+      // Insere como 'pending' por padrão
       const { error } = await supabase
         .from('users')
         .insert({
@@ -60,8 +60,12 @@ export const authService = {
         return { error: 'Login ou senha incorretos.' };
       }
 
-      if (data.status !== 'active') {
+      if (data.status === 'pending') {
           return { error: 'Sua conta ainda está em análise pelo administrador.' };
+      }
+      
+      if (data.status === 'rejected' || data.status === 'inactive') {
+          return { error: 'Esta conta foi desativada.' };
       }
 
       // Cast para o tipo User compatível
@@ -92,6 +96,17 @@ export const authService = {
       return data as User[];
   },
 
+  async getAllUsers(): Promise<User[]> {
+      const { data, error } = await supabase
+          .from('users')
+          .select('id, full_name, username, status, role, created_at')
+          .neq('status', 'pending') // Trazemos ativos e rejeitados
+          .order('full_name', { ascending: true });
+
+      if (error) throw error;
+      return data as User[];
+  },
+
   async approveUser(userId: string): Promise<void> {
       const { error } = await supabase
           .from('users')
@@ -101,11 +116,32 @@ export const authService = {
   },
 
   async rejectUser(userId: string): Promise<void> {
-      // Opção A: Apenas marcar como rejected
-      // const { error } = await supabase.from('users').update({ status: 'rejected' }).eq('id', userId);
-      
-      // Opção B: Deletar o registro para liberar o username
+      // Apenas marca como rejected (desativado)
+      const { error } = await supabase.from('users').update({ status: 'rejected' }).eq('id', userId);
+      if (error) throw error;
+  },
+  
+  async deleteUserPermanent(userId: string): Promise<void> {
+      // Deleta fisicamente
       const { error } = await supabase.from('users').delete().eq('id', userId);
+      if (error) throw error;
+  },
+
+  async updateUserProfile(userId: string, updates: { full_name?: string; username?: string; role?: string; status?: string }): Promise<void> {
+      const { error } = await supabase
+          .from('users')
+          .update(updates)
+          .eq('id', userId);
+      
+      if (error) throw error;
+  },
+
+  async adminResetPassword(userId: string, newPasswordPlain: string): Promise<void> {
+      const passwordHash = await hashPassword(newPasswordPlain);
+      const { error } = await supabase
+          .from('users')
+          .update({ password: passwordHash })
+          .eq('id', userId);
       
       if (error) throw error;
   }
