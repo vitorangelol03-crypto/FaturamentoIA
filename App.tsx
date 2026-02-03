@@ -5,6 +5,7 @@ import { ReceiptList } from './components/ReceiptList';
 import { AddReceipt } from './components/AddReceipt';
 import { Settings } from './components/Settings';
 import { AuthPage } from './components/AuthPage';
+import { AdminPanel } from './components/AdminPanel';
 import { supabase } from './services/supabaseClient';
 import { Receipt, Category, User } from './types';
 import { DEFAULT_CATEGORIES } from './constants';
@@ -34,6 +35,7 @@ export default function App() {
       setUser(null);
       localStorage.removeItem('smartreceipts_user');
       setReceipts([]);
+      setCurrentTab('dashboard');
   };
   
   // Filtro Global de Empresa
@@ -109,6 +111,7 @@ export default function App() {
         onTabChange={setCurrentTab}
         selectedLocation={selectedLocation}
         onLocationChange={handleLocationChange}
+        currentUser={user}
       >
         {/* Header Extra para Logout/User Info - Inserido no topo do children */}
         <div className="px-4 pt-2 pb-0 flex justify-between items-center bg-gray-50 text-xs text-gray-500">
@@ -127,6 +130,9 @@ export default function App() {
             />
         )}
         {currentTab === 'add' && <AddReceipt categories={categories} onSaved={handleReceiptSaved} userId={user.id} />}
+        {currentTab === 'admin' && (user.role === 'admin' || user.username === 'zoork22') && (
+            <AdminPanel />
+        )}
         {currentTab === 'settings' && (
             <Settings 
                 categories={categories} 

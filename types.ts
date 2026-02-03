@@ -2,6 +2,8 @@ export interface User {
   id: string;
   full_name: string;
   username: string;
+  role?: 'admin' | 'user';
+  status?: 'pending' | 'active' | 'rejected';
 }
 
 export interface ReceiptItem {

@@ -1,6 +1,7 @@
 import React from 'react';
-import { Home, PlusCircle, FileText, Settings as SettingsIcon, MapPin } from 'lucide-react';
+import { Home, PlusCircle, FileText, Settings as SettingsIcon, MapPin, Shield } from 'lucide-react';
 import { clsx } from 'clsx';
+import { User } from '../types';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -8,9 +9,12 @@ interface LayoutProps {
   onTabChange: (tab: string) => void;
   selectedLocation: string;
   onLocationChange: (loc: string) => void;
+  currentUser?: User | null;
 }
 
-export const Layout: React.FC<LayoutProps> = ({ children, currentTab, onTabChange, selectedLocation, onLocationChange }) => {
+export const Layout: React.FC<LayoutProps> = ({ children, currentTab, onTabChange, selectedLocation, onLocationChange, currentUser }) => {
+  const isAdmin = currentUser?.role === 'admin' || currentUser?.username === 'zoork22';
+
   return (
     <div className="flex flex-col min-h-screen w-full max-w-md mx-auto bg-white shadow-xl relative">
       
@@ -49,9 +53,6 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentTab, onTabChang
 
       {/* 
         Bottom Navigation 
-        - position: fixed (requisito do usuário)
-        - bottom: 0
-        - z-index: 50
       */}
       <nav className="bottom-nav fixed bottom-0 left-0 right-0 w-full max-w-md mx-auto bg-white border-t border-gray-200 flex items-center justify-around px-2 pb-[env(safe-area-inset-bottom)] h-[calc(70px+env(safe-area-inset-bottom))] z-50 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
         <button 
@@ -80,8 +81,19 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentTab, onTabChang
           )}>
             <PlusCircle size={32} className="text-white" />
           </div>
-          <span className={clsx("text-[10px] font-medium mt-1", currentTab === 'add' ? "text-brand-600" : "text-gray-500")}>Adicionar</span>
+          <span className="text-[10px] font-medium mt-1 text-gray-500">Adicionar</span>
         </button>
+
+        {/* Botão Admin condicional */}
+        {isAdmin && (
+             <button 
+                onClick={() => onTabChange('admin')}
+                className={clsx("flex flex-col items-center gap-1 p-2 transition-colors flex-1", currentTab === 'admin' ? "text-brand-600" : "text-gray-400")}
+            >
+                <Shield size={24} strokeWidth={currentTab === 'admin' ? 2.5 : 2} />
+                <span className="text-[10px] font-medium">Admin</span>
+            </button>
+        )}
 
         <button 
           onClick={() => onTabChange('settings')}

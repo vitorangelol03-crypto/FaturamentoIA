@@ -10,7 +10,7 @@ export async function hashPassword(message: string) {
 }
 
 export const authService = {
-  async register(fullName: string, username: string, passwordPlain: string): Promise<{ user?: User; error?: string }> {
+  async register(fullName: string, username: string, passwordPlain: string): Promise<{ success?: boolean; error?: string }> {
     try {
       // Verificar se usuário já existe
       const { data: existing } = await supabase
@@ -25,18 +25,20 @@ export const authService = {
 
       const passwordHash = await hashPassword(passwordPlain);
 
-      const { data, error } = await supabase
+      // Insere como 'pending' por padrão (definido no banco ou explícito aqui)
+      const { error } = await supabase
         .from('users')
         .insert({
           full_name: fullName,
           username: username,
-          password: passwordHash
-        })
-        .select('id, full_name, username')
-        .single();
+          password: passwordHash,
+          status: 'pending',
+          role: 'user'
+        });
 
       if (error) throw error;
-      return { user: data };
+      
+      return { success: true };
     } catch (e: any) {
       console.error(e);
       return { error: e.message || 'Erro ao criar conta.' };
@@ -49,7 +51,7 @@ export const authService = {
 
       const { data, error } = await supabase
         .from('users')
-        .select('id, full_name, username')
+        .select('id, full_name, username, role, status')
         .eq('username', username)
         .eq('password', passwordHash)
         .single();
@@ -58,9 +60,53 @@ export const authService = {
         return { error: 'Login ou senha incorretos.' };
       }
 
-      return { user: data };
+      if (data.status !== 'active') {
+          return { error: 'Sua conta ainda está em análise pelo administrador.' };
+      }
+
+      // Cast para o tipo User compatível
+      const user: User = {
+          id: data.id,
+          full_name: data.full_name,
+          username: data.username,
+          role: data.role as 'admin' | 'user',
+          status: data.status as 'active' | 'pending' | 'rejected'
+      };
+
+      return { user };
     } catch (e: any) {
       return { error: 'Erro de conexão ou credenciais inválidas.' };
     }
+  },
+
+  // --- ADMIN FUNCTIONS ---
+
+  async getPendingUsers(): Promise<User[]> {
+      const { data, error } = await supabase
+          .from('users')
+          .select('id, full_name, username, status, created_at')
+          .eq('status', 'pending')
+          .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      return data as User[];
+  },
+
+  async approveUser(userId: string): Promise<void> {
+      const { error } = await supabase
+          .from('users')
+          .update({ status: 'active' })
+          .eq('id', userId);
+      if (error) throw error;
+  },
+
+  async rejectUser(userId: string): Promise<void> {
+      // Opção A: Apenas marcar como rejected
+      // const { error } = await supabase.from('users').update({ status: 'rejected' }).eq('id', userId);
+      
+      // Opção B: Deletar o registro para liberar o username
+      const { error } = await supabase.from('users').delete().eq('id', userId);
+      
+      if (error) throw error;
   }
 };

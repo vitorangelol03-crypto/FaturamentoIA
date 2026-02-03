@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { authService } from '../services/authService';
 import { User } from '../types';
-import { FileText, Loader2, User as UserIcon, Lock, ArrowRight, UserPlus } from 'lucide-react';
+import { FileText, Loader2, User as UserIcon, Lock, ArrowRight, UserPlus, CheckCircle, Clock } from 'lucide-react';
 import { clsx } from 'clsx';
 
 interface AuthPageProps {
@@ -12,6 +12,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onLogin }) => {
   const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [registerSuccess, setRegisterSuccess] = useState(false);
 
   // Form State
   const [fullName, setFullName] = useState('');
@@ -34,9 +35,15 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onLogin }) => {
             setLoading(false);
             return;
         }
-        const { user, error } = await authService.register(fullName, username, password);
-        if (error) setError(error);
-        else if (user) onLogin(user);
+        const { success, error } = await authService.register(fullName, username, password);
+        if (error) {
+            setError(error);
+        } else if (success) {
+            setRegisterSuccess(true);
+            setFullName('');
+            setUsername('');
+            setPassword('');
+        }
       }
     } catch (err) {
       setError("Ocorreu um erro inesperado.");
@@ -44,6 +51,31 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onLogin }) => {
       setLoading(false);
     }
   };
+
+  // Tela de Sucesso Pós-Cadastro
+  if (registerSuccess) {
+      return (
+        <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6">
+            <div className="w-full max-w-sm bg-white rounded-2xl shadow-xl p-8 text-center animate-in zoom-in duration-300">
+                <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Clock size={32} />
+                </div>
+                <h2 className="text-xl font-bold text-gray-900 mb-2">Cadastro Recebido!</h2>
+                <p className="text-gray-500 text-sm mb-6">
+                    Sua conta foi criada e está <strong>aguardando aprovação</strong> do administrador. 
+                    <br/><br/>
+                    Você poderá fazer login assim que seu cadastro for liberado.
+                </p>
+                <button 
+                    onClick={() => { setRegisterSuccess(false); setIsLogin(true); }}
+                    className="w-full bg-brand-600 text-white py-3 rounded-xl font-bold hover:bg-brand-700 transition-colors"
+                >
+                    Voltar para Login
+                </button>
+            </div>
+        </div>
+      );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6 relative overflow-hidden">
@@ -80,7 +112,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onLogin }) => {
 
                 <form onSubmit={handleSubmit} className="space-y-4">
                     {!isLogin && (
-                         <div className="space-y-1">
+                         <div className="space-y-1 animate-in slide-in-from-top-2 fade-in">
                             <label className="text-xs font-semibold text-gray-500 ml-1">Nome Completo</label>
                             <div className="relative">
                                 <UserIcon className="absolute left-3 top-3 text-gray-400" size={18} />
@@ -127,25 +159,31 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onLogin }) => {
                     </div>
 
                     {error && (
-                        <div className="p-3 bg-red-50 text-red-600 text-xs rounded-lg font-medium border border-red-100 flex items-center gap-2">
-                            <span className="w-1.5 h-1.5 bg-red-500 rounded-full"></span>
+                        <div className="p-3 bg-red-50 text-red-600 text-xs rounded-lg font-medium border border-red-100 flex items-center gap-2 animate-in fade-in">
+                            <span className="w-1.5 h-1.5 bg-red-500 rounded-full flex-shrink-0"></span>
                             {error}
+                        </div>
+                    )}
+
+                    {!isLogin && (
+                        <div className="text-[10px] text-gray-400 text-center px-2">
+                            Novos cadastros requerem aprovação do administrador.
                         </div>
                     )}
 
                     <button 
                         type="submit" 
                         disabled={loading}
-                        className="w-full bg-brand-600 hover:bg-brand-700 text-white font-bold py-3 rounded-xl shadow-lg shadow-brand-500/30 transition-all active:scale-95 flex items-center justify-center gap-2 mt-4"
+                        className="w-full bg-brand-600 hover:bg-brand-700 text-white font-bold py-3 rounded-xl shadow-lg shadow-brand-500/30 transition-all active:scale-95 flex items-center justify-center gap-2 mt-2"
                     >
-                        {loading ? <Loader2 className="animate-spin" size={20} /> : (isLogin ? "Acessar Sistema" : "Cadastrar")}
+                        {loading ? <Loader2 className="animate-spin" size={20} /> : (isLogin ? "Acessar Sistema" : "Solicitar Cadastro")}
                         {!loading && <ArrowRight size={18} />}
                     </button>
                 </form>
             </div>
             
             <div className="bg-gray-50 p-4 text-center border-t border-gray-100">
-                <p className="text-xs text-gray-400">Ambiente Seguro • SmartReceipts v1.2</p>
+                <p className="text-xs text-gray-400">Ambiente Seguro • SmartReceipts v1.3</p>
             </div>
         </div>
     </div>
