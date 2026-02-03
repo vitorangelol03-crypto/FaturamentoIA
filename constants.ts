@@ -3,10 +3,8 @@
 
 export const SUPABASE_URL = "https://cgyozwznlqakopbhejub.supabase.co";
 export const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNneW96d3pubHFha29wYmhlanViIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAwNDA4MjksImV4cCI6MjA4NTYxNjgyOX0.uxJGbuj1O7c9ZieckjkeQKhrXrD9B3QQwnyWfP1mlis";
-export const GEMINI_API_KEY = "AIzaSyBjS8JBwMOx_oPoIsJny1UJ439Q2FbnHgA";
 
-// Needed for global access to these keys in services
-process.env.API_KEY = GEMINI_API_KEY;
+// API Key removida por segurança. Agora reside apenas no backend (Vercel Env Vars).
 
 export const DEFAULT_CATEGORIES = [
   { id: '1', name: 'Alimentação', color: '#EF4444' },
