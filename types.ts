@@ -1,3 +1,9 @@
+export interface User {
+  id: string;
+  full_name: string;
+  username: string;
+}
+
 export interface ReceiptItem {
   name: string;
   quantity: number;
@@ -10,6 +16,7 @@ export interface Category {
   name: string;
   color: string;
   is_default?: boolean;
+  user_id?: string;
 }
 
 export interface Receipt {
@@ -23,7 +30,8 @@ export interface Receipt {
   location?: string; // 'Caratinga' | 'Ponte Nova'
   payment_method?: string;
   items: ReceiptItem[];
-  image_url?: string; // Storing Base64 for this demo to avoid Storage bucket setup
+  image_url?: string; 
+  user_id?: string;
   created_at: string;
 }
 

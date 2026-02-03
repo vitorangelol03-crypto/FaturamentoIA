@@ -4,18 +4,39 @@ import { Dashboard } from './components/Dashboard';
 import { ReceiptList } from './components/ReceiptList';
 import { AddReceipt } from './components/AddReceipt';
 import { Settings } from './components/Settings';
+import { AuthPage } from './components/AuthPage';
 import { supabase } from './services/supabaseClient';
-import { Receipt, Category } from './types';
+import { Receipt, Category, User } from './types';
 import { DEFAULT_CATEGORIES } from './constants';
+import { LogOut } from 'lucide-react';
 
 export default function App() {
+  const [user, setUser] = useState<User | null>(null);
   const [currentTab, setCurrentTab] = useState('dashboard');
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [categories, setCategories] = useState<Category[]>(DEFAULT_CATEGORIES);
-  const [loading, setLoading] = useState(true);
+  const [loadingData, setLoadingData] = useState(false);
   
-  // Filtro Global de Empresa ('all', 'Caratinga', 'Ponte Nova')
-  // Persiste a escolha no localStorage para não resetar ao recarregar
+  // Persistência simples de sessão
+  useEffect(() => {
+    const savedUser = localStorage.getItem('smartreceipts_user');
+    if (savedUser) {
+        setUser(JSON.parse(savedUser));
+    }
+  }, []);
+
+  const handleLogin = (u: User) => {
+      setUser(u);
+      localStorage.setItem('smartreceipts_user', JSON.stringify(u));
+  };
+
+  const handleLogout = () => {
+      setUser(null);
+      localStorage.removeItem('smartreceipts_user');
+      setReceipts([]);
+  };
+  
+  // Filtro Global de Empresa
   const [selectedLocation, setSelectedLocation] = useState<string>(() => {
       return localStorage.getItem('smartreceipts_location') || 'all';
   });
@@ -23,24 +44,35 @@ export default function App() {
   const handleLocationChange = (loc: string) => {
       setSelectedLocation(loc);
       localStorage.setItem('smartreceipts_location', loc);
-      fetchData(true, loc); // Recarrega dados filtrados
   };
 
-  const fetchData = async (showLoading = true, locationFilter = selectedLocation) => {
+  const fetchData = async () => {
+    if (!user) return;
+
     try {
-      if (showLoading) setLoading(true);
+      setLoadingData(true);
       
-      // Fetch Categories
-      const { data: catData } = await supabase.from('categories').select('*').order('name');
+      // Fetch Categories: Padrão OU do usuário
+      // query: is_default = true OR user_id = user.id
+      const { data: catData } = await supabase
+        .from('categories')
+        .select('*')
+        .or(`is_default.eq.true,user_id.eq.${user.id}`)
+        .order('name');
+
       if (catData && catData.length > 0) {
         setCategories(catData);
       }
 
-      // Fetch Receipts with optional filter
-      let query = supabase.from('receipts').select('*').order('date', { ascending: false });
+      // Fetch Receipts: Apenas do usuário
+      let query = supabase
+        .from('receipts')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('date', { ascending: false });
       
-      if (locationFilter !== 'all') {
-          query = query.eq('location', locationFilter);
+      if (selectedLocation !== 'all') {
+          query = query.eq('location', selectedLocation);
       }
 
       const { data: recData } = await query;
@@ -51,25 +83,23 @@ export default function App() {
     } catch (e) {
       console.error("Error fetching data", e);
     } finally {
-      if (showLoading) setLoading(false);
+      setLoadingData(false);
     }
   };
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    if (user) {
+        fetchData();
+    }
+  }, [user, selectedLocation]);
 
   const handleReceiptSaved = () => {
-    fetchData(false); // Silent update
+    fetchData(); 
     setCurrentTab('receipts');
   };
 
-  if (loading) {
-    return (
-      <div className="h-screen w-full flex items-center justify-center bg-gray-50">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-600"></div>
-      </div>
-    );
+  if (!user) {
+      return <AuthPage onLogin={handleLogin} />;
   }
 
   return (
@@ -80,20 +110,29 @@ export default function App() {
         selectedLocation={selectedLocation}
         onLocationChange={handleLocationChange}
       >
+        {/* Header Extra para Logout/User Info - Inserido no topo do children */}
+        <div className="px-4 pt-2 pb-0 flex justify-between items-center bg-gray-50 text-xs text-gray-500">
+             <span>Olá, <strong>{user.full_name.split(' ')[0]}</strong></span>
+             <button onClick={handleLogout} className="flex items-center gap-1 text-red-400 hover:text-red-600">
+                <LogOut size={12} /> Sair
+             </button>
+        </div>
+
         {currentTab === 'dashboard' && <Dashboard receipts={receipts} categories={categories} />}
         {currentTab === 'receipts' && (
             <ReceiptList 
                 receipts={receipts} 
                 categories={categories} 
-                onRefresh={() => fetchData(false)} 
+                onRefresh={fetchData} 
             />
         )}
-        {currentTab === 'add' && <AddReceipt categories={categories} onSaved={handleReceiptSaved} />}
+        {currentTab === 'add' && <AddReceipt categories={categories} onSaved={handleReceiptSaved} userId={user.id} />}
         {currentTab === 'settings' && (
             <Settings 
                 categories={categories} 
-                refreshCategories={() => fetchData(false)} 
+                refreshCategories={fetchData} 
                 receipts={receipts}
+                userId={user.id}
             />
         )}
       </Layout>

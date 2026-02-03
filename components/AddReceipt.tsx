@@ -9,6 +9,7 @@ import { REQUIRED_CNPJ } from '../constants';
 interface AddReceiptProps {
   categories: Category[];
   onSaved: () => void;
+  userId: string;
 }
 
 type QueueStatus = 'waiting' | 'processing' | 'saving' | 'success' | 'error';
@@ -28,7 +29,7 @@ interface QueueItem {
   extractedCNPJ?: string;
 }
 
-export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved }) => {
+export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, userId }) => {
   const [mode, setMode] = useState<'upload' | 'camera' | 'queue' | 'summary'>('upload');
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -249,17 +250,10 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved }) =
       const extractedCNPJ = rawData.cnpj ? rawData.cnpj.replace(/\D/g, '') : '';
       const cleanRequiredCNPJ = REQUIRED_CNPJ.replace(/\D/g, '');
 
-      // LOGICA DE DETECÇÃO DE LOCALIZAÇÃO
-      // Se bater o CNPJ de Caratinga, marca como Caratinga.
-      // Se não, assume Ponte Nova por padrão (o usuário pode trocar na edição se estiver errado)
       let determinedLocation = 'Ponte Nova'; 
       if (extractedCNPJ === cleanRequiredCNPJ) {
           determinedLocation = 'Caratinga';
       }
-
-      // Validação Estrita: Só bloqueia se for identificado como Caratinga mas o CNPJ não bater (o que é paradoxal, mas serve para forçar validação futura)
-      // Neste caso, se a IA diz que é Caratinga, é porque o CNPJ bateu.
-      // Se o usuário tentar forçar "Caratinga" num CNPJ errado manualmente depois, bloqueamos lá.
 
       const matchedCategory = categories.find(c => 
           c.name.toLowerCase() === rawData.suggested_category?.toLowerCase()
@@ -285,7 +279,8 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved }) =
         category_id: matchedCategory.id,
         items: rawData.items || [],
         image_url: base64,
-        location: determinedLocation
+        location: determinedLocation,
+        user_id: userId // Vincula ao usuário logado
       }).select().single();
 
       if (error) throw error;
@@ -310,17 +305,11 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved }) =
   const handleEditSave = async () => {
       if (!editingItem || !editingItem.dbId) return;
 
-      // Validação de Segurança para Caratinga
-      // Se o usuário selecionar Caratinga, o CNPJ PRECISA bater com a regra.
       if (editingItem.location === 'Caratinga') {
           const cleanRequired = REQUIRED_CNPJ.replace(/\D/g, '');
           const currentCNPJ = editingItem.extractedCNPJ || '';
           
           if (currentCNPJ !== cleanRequired) {
-              // Se não tiver CNPJ extraído ou for diferente, pedimos confirmação ou bloqueamos.
-              // Como a IA pode falhar em ler o CNPJ, vamos permitir com um aviso, 
-              // mas idealmente aqui bloquearíamos se tivéssemos certeza da leitura.
-              // Para ser seguro e não travar o usuário:
               const confirm = window.confirm(`O CNPJ lido (${currentCNPJ || 'nenhum'}) não bate com o da firma de Caratinga (${cleanRequired}). Deseja salvar mesmo assim?`);
               if (!confirm) return;
           }

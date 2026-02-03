@@ -7,9 +7,10 @@ interface SettingsProps {
   categories: Category[];
   receipts: Receipt[];
   refreshCategories: () => void;
+  userId: string;
 }
 
-export const Settings: React.FC<SettingsProps> = ({ categories, receipts, refreshCategories }) => {
+export const Settings: React.FC<SettingsProps> = ({ categories, receipts, refreshCategories, userId }) => {
   const [newCatName, setNewCatName] = useState('');
   const [newCatColor, setNewCatColor] = useState('#6366F1');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -22,7 +23,8 @@ export const Settings: React.FC<SettingsProps> = ({ categories, receipts, refres
     const { error } = await supabase.from('categories').insert({
       name: newCatName,
       color: newCatColor,
-      is_default: false
+      is_default: false,
+      user_id: userId
     });
     if (!error) {
       setNewCatName('');
@@ -58,7 +60,7 @@ export const Settings: React.FC<SettingsProps> = ({ categories, receipts, refres
       setActiveDeleteAction(period);
 
       try {
-          let query = supabase.from('receipts').delete();
+          let query = supabase.from('receipts').delete().eq('user_id', userId);
           const now = new Date();
           let startDate: Date | null = null;
           let endDate: Date | null = null;
@@ -85,9 +87,6 @@ export const Settings: React.FC<SettingsProps> = ({ categories, receipts, refres
                    const endStr = endDate.toISOString().split('T')[0];
                    query = query.lte('date', endStr);
               }
-          } else {
-              // For 'all', explicit filter to satisfy some RLS/safe-delete requirements
-              query = query.neq('id', '00000000-0000-0000-0000-000000000000');
           }
 
           const { error } = await query;
