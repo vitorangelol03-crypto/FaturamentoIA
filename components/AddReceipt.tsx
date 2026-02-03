@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Camera, Upload, X, CheckCircle, XCircle, Loader2, Play, Pause, AlertTriangle, FileText, ArrowRight, Save, Edit2, RotateCcw, Image as ImageIcon, Zap, Check, MapPin } from 'lucide-react';
 import { extractReceiptData } from '../services/geminiService';
-import { Category } from '../types';
+import { Category, User } from '../types';
 import { supabase } from '../services/supabaseClient';
 import { clsx } from 'clsx';
 import { REQUIRED_CNPJ } from '../constants';
@@ -9,7 +9,7 @@ import { REQUIRED_CNPJ } from '../constants';
 interface AddReceiptProps {
   categories: Category[];
   onSaved: () => void;
-  userId: string;
+  currentUser: User;
 }
 
 type QueueStatus = 'waiting' | 'processing' | 'saving' | 'success' | 'error';
@@ -29,7 +29,7 @@ interface QueueItem {
   extractedCNPJ?: string;
 }
 
-export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, userId }) => {
+export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, currentUser }) => {
   const [mode, setMode] = useState<'upload' | 'camera' | 'queue' | 'summary'>('upload');
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -47,6 +47,9 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, use
 
   // File Input Ref
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Helper
+  const isAdmin = currentUser.role === 'admin' || currentUser.username === 'zoork22';
 
   // Stats
   const processedCount = queue.filter(i => i.status === 'success').length;
@@ -250,9 +253,17 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, use
       const extractedCNPJ = rawData.cnpj ? rawData.cnpj.replace(/\D/g, '') : '';
       const cleanRequiredCNPJ = REQUIRED_CNPJ.replace(/\D/g, '');
 
+      // LOGICA DE LOCALIZAÇÃO:
+      // Se for admin, tenta adivinhar pelo CNPJ.
+      // Se NÃO for admin, FORÇA a localização do usuário.
       let determinedLocation = 'Ponte Nova'; 
-      if (extractedCNPJ === cleanRequiredCNPJ) {
-          determinedLocation = 'Caratinga';
+      
+      if (isAdmin) {
+          if (extractedCNPJ === cleanRequiredCNPJ) {
+              determinedLocation = 'Caratinga';
+          }
+      } else {
+          determinedLocation = currentUser.location || 'Caratinga';
       }
 
       const matchedCategory = categories.find(c => 
@@ -280,7 +291,7 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, use
         items: rawData.items || [],
         image_url: base64,
         location: determinedLocation,
-        user_id: userId // Vincula ao usuário logado
+        user_id: currentUser.id // Vincula ao usuário logado
       }).select().single();
 
       if (error) throw error;
@@ -305,7 +316,9 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, use
   const handleEditSave = async () => {
       if (!editingItem || !editingItem.dbId) return;
 
-      if (editingItem.location === 'Caratinga') {
+      // Se for admin editando, valida o CNPJ como antes.
+      // Se for funcionário, não precisa validar CNPJ vs Localização pois ele está travado na localização dele.
+      if (isAdmin && editingItem.location === 'Caratinga') {
           const cleanRequired = REQUIRED_CNPJ.replace(/\D/g, '');
           const currentCNPJ = editingItem.extractedCNPJ || '';
           
@@ -386,23 +399,30 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, use
                         />
                       </div>
 
-                      {/* Seletor de Unidade */}
+                      {/* Seletor de Unidade - BLOQUEADO SE NÃO FOR ADMIN */}
                       <div>
                         <label className="block text-xs font-medium text-gray-500 mb-1">Unidade / Empresa</label>
-                        <div className="flex gap-2">
-                            <button
-                                onClick={() => setEditingItem({...editingItem, location: 'Caratinga'})}
-                                className={clsx("flex-1 py-2 text-xs font-medium rounded-lg border", editingItem.location === 'Caratinga' ? "bg-brand-50 border-brand-500 text-brand-700" : "bg-white border-gray-200 text-gray-600")}
-                            >
-                                Caratinga
-                            </button>
-                            <button
-                                onClick={() => setEditingItem({...editingItem, location: 'Ponte Nova'})}
-                                className={clsx("flex-1 py-2 text-xs font-medium rounded-lg border", editingItem.location === 'Ponte Nova' ? "bg-brand-50 border-brand-500 text-brand-700" : "bg-white border-gray-200 text-gray-600")}
-                            >
-                                Ponte Nova
-                            </button>
-                        </div>
+                        {isAdmin ? (
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => setEditingItem({...editingItem, location: 'Caratinga'})}
+                                    className={clsx("flex-1 py-2 text-xs font-medium rounded-lg border", editingItem.location === 'Caratinga' ? "bg-brand-50 border-brand-500 text-brand-700" : "bg-white border-gray-200 text-gray-600")}
+                                >
+                                    Caratinga
+                                </button>
+                                <button
+                                    onClick={() => setEditingItem({...editingItem, location: 'Ponte Nova'})}
+                                    className={clsx("flex-1 py-2 text-xs font-medium rounded-lg border", editingItem.location === 'Ponte Nova' ? "bg-brand-50 border-brand-500 text-brand-700" : "bg-white border-gray-200 text-gray-600")}
+                                >
+                                    Ponte Nova
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="w-full p-2 bg-gray-100 text-gray-500 text-sm rounded-lg border border-gray-200 flex items-center gap-2">
+                                <MapPin size={16} />
+                                {editingItem.location} (Fixo)
+                            </div>
+                        )}
                       </div>
 
                       <div className="flex gap-3">
@@ -696,6 +716,12 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, use
         <div className="text-center mb-8">
             <h2 className="text-2xl font-bold text-gray-900">Adicionar Despesas</h2>
             <p className="text-gray-500 text-sm mt-2">Escolha como deseja enviar seus comprovantes.</p>
+            {!isAdmin && (
+                <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1 bg-brand-50 border border-brand-100 rounded-full text-xs text-brand-700">
+                    <MapPin size={12} />
+                    <span>Salvando em: <strong>{currentUser.location}</strong></span>
+                </div>
+            )}
         </div>
 
         {/* Inputs Ocultos */}

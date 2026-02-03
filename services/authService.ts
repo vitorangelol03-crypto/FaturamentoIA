@@ -25,7 +25,7 @@ export const authService = {
 
       const passwordHash = await hashPassword(passwordPlain);
 
-      // Insere como 'pending' por padrão
+      // Insere como 'pending' por padrão e location padrão 'Caratinga' (admin muda depois)
       const { error } = await supabase
         .from('users')
         .insert({
@@ -33,7 +33,8 @@ export const authService = {
           username: username,
           password: passwordHash,
           status: 'pending',
-          role: 'user'
+          role: 'user',
+          location: 'Caratinga'
         });
 
       if (error) throw error;
@@ -51,7 +52,7 @@ export const authService = {
 
       const { data, error } = await supabase
         .from('users')
-        .select('id, full_name, username, role, status')
+        .select('id, full_name, username, role, status, location')
         .eq('username', username)
         .eq('password', passwordHash)
         .single();
@@ -74,7 +75,8 @@ export const authService = {
           full_name: data.full_name,
           username: data.username,
           role: data.role as 'admin' | 'user',
-          status: data.status as 'active' | 'pending' | 'rejected'
+          status: data.status as 'active' | 'pending' | 'rejected',
+          location: (data.location as 'Caratinga' | 'Ponte Nova') || 'Caratinga'
       };
 
       return { user };
@@ -88,7 +90,7 @@ export const authService = {
   async getPendingUsers(): Promise<User[]> {
       const { data, error } = await supabase
           .from('users')
-          .select('id, full_name, username, status, created_at')
+          .select('id, full_name, username, status, created_at, location')
           .eq('status', 'pending')
           .order('created_at', { ascending: false });
       
@@ -99,7 +101,7 @@ export const authService = {
   async getAllUsers(): Promise<User[]> {
       const { data, error } = await supabase
           .from('users')
-          .select('id, full_name, username, status, role, created_at')
+          .select('id, full_name, username, status, role, created_at, location')
           .neq('status', 'pending') // Trazemos ativos e rejeitados
           .order('full_name', { ascending: true });
 
@@ -127,7 +129,7 @@ export const authService = {
       if (error) throw error;
   },
 
-  async updateUserProfile(userId: string, updates: { full_name?: string; username?: string; role?: string; status?: string }): Promise<void> {
+  async updateUserProfile(userId: string, updates: { full_name?: string; username?: string; role?: string; status?: string; location?: string }): Promise<void> {
       const { error } = await supabase
           .from('users')
           .update(updates)

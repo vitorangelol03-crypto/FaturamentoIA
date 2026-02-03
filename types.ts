@@ -4,6 +4,7 @@ export interface User {
   username: string;
   role?: 'admin' | 'user';
   status?: 'pending' | 'active' | 'rejected';
+  location?: 'Caratinga' | 'Ponte Nova';
 }
 
 export interface ReceiptItem {

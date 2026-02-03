@@ -55,8 +55,7 @@ export default function App() {
       setLoadingData(true);
       const isAdmin = user.role === 'admin' || user.username === 'zoork22';
       
-      // Fetch Categories: Padrão OU do usuário OU todas se for admin (opcional, aqui mantemos foco nas do user + default)
-      // query: is_default = true OR user_id = user.id
+      // Fetch Categories: Padrão OU do usuário OU todas se for admin
       const { data: catData } = await supabase
         .from('categories')
         .select('*')
@@ -73,15 +72,21 @@ export default function App() {
         .select('*')
         .order('date', { ascending: false });
       
-      // LOGICA CRÍTICA:
-      // Se NÃO for admin, filtra rigorosamente pelo ID do usuário.
-      // Se FOR admin, não aplica filtro de user_id, mostrando notas órfãs (antigas) e de outros users.
+      // LOGICA CRÍTICA DE EMPRESA:
       if (!isAdmin) {
-          query = query.eq('user_id', user.id);
-      }
-      
-      if (selectedLocation !== 'all') {
-          query = query.eq('location', selectedLocation);
+          // Se não for admin, vê TODAS as notas da sua localidade (compartilhamento por filial)
+          // Mas não vê notas de outras filiais.
+          if (user.location) {
+             query = query.eq('location', user.location);
+          } else {
+             // Fallback se usuário não tiver location definida: vê apenas suas próprias.
+             query = query.eq('user_id', user.id);
+          }
+      } else {
+          // Se for Admin, obedece o filtro do Header
+          if (selectedLocation !== 'all') {
+              query = query.eq('location', selectedLocation);
+          }
       }
 
       const { data: recData } = await query;
@@ -139,7 +144,7 @@ export default function App() {
                 onRefresh={fetchData} 
             />
         )}
-        {currentTab === 'add' && <AddReceipt categories={categories} onSaved={handleReceiptSaved} userId={user.id} />}
+        {currentTab === 'add' && <AddReceipt categories={categories} onSaved={handleReceiptSaved} currentUser={user} />}
         {currentTab === 'admin' && (user.role === 'admin' || user.username === 'zoork22') && (
             <AdminPanel />
         )}

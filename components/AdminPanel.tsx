@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { User } from '../types';
 import { authService } from '../services/authService';
-import { Check, X, Shield, RefreshCw, User as UserIcon, Loader2, Users, UserCog, Key, Trash2, Ban, Search, Save, Edit } from 'lucide-react';
+import { Check, X, Shield, RefreshCw, User as UserIcon, Loader2, Users, UserCog, Key, Trash2, Ban, Search, Save, Edit, MapPin } from 'lucide-react';
 import { clsx } from 'clsx';
 
 type AdminTab = 'pending' | 'manage';
@@ -107,7 +107,8 @@ export const AdminPanel: React.FC = () => {
             await authService.updateUserProfile(editingUser.id, {
                 full_name: editingUser.full_name,
                 username: editingUser.username,
-                role: editingUser.role
+                role: editingUser.role,
+                location: editingUser.location
             });
             setEditingUser(null);
             await fetchData();
@@ -205,9 +206,14 @@ export const AdminPanel: React.FC = () => {
                                             <p className="text-sm text-gray-500">@{user.username}</p>
                                         </div>
                                     </div>
-                                    <span className="bg-yellow-50 text-yellow-700 text-[10px] font-bold px-2 py-1 rounded-full border border-yellow-100">
-                                        NOVO
-                                    </span>
+                                    <div className="flex flex-col items-end gap-1">
+                                        <span className="bg-yellow-50 text-yellow-700 text-[10px] font-bold px-2 py-1 rounded-full border border-yellow-100">
+                                            NOVO
+                                        </span>
+                                        <span className="text-[10px] text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
+                                            {user.location || 'Sem local'}
+                                        </span>
+                                    </div>
                                 </div>
                                 <div className="flex gap-3 mt-4 pt-3 border-t border-gray-50">
                                     <button 
@@ -265,9 +271,13 @@ export const AdminPanel: React.FC = () => {
                                                 <h4 className={clsx("font-bold", user.status === 'rejected' ? "text-red-800 line-through" : "text-gray-900")}>
                                                     {user.full_name}
                                                 </h4>
-                                                <div className="flex items-center gap-2">
+                                                <div className="flex items-center gap-2 mt-0.5">
                                                     <p className="text-sm text-gray-500">@{user.username}</p>
                                                     {user.role === 'admin' && <span className="text-[9px] bg-brand-100 text-brand-700 px-1.5 rounded font-bold">ADMIN</span>}
+                                                </div>
+                                                <div className="flex items-center gap-1 mt-1 text-[10px] text-gray-500 bg-gray-50 px-2 py-0.5 rounded-md w-fit">
+                                                    <MapPin size={10} />
+                                                    {user.location || 'Sem local'}
                                                 </div>
                                             </div>
                                         </div>
@@ -337,7 +347,7 @@ export const AdminPanel: React.FC = () => {
                                 />
                             </div>
                             <div>
-                                <label className="text-xs font-semibold text-gray-500">Função</label>
+                                <label className="text-xs font-semibold text-gray-500">Função (Role)</label>
                                 <select 
                                     value={editingUser.role || 'user'} 
                                     onChange={e => setEditingUser({...editingUser, role: e.target.value as 'user' | 'admin'})}
@@ -345,6 +355,17 @@ export const AdminPanel: React.FC = () => {
                                 >
                                     <option value="user">Usuário Comum</option>
                                     <option value="admin">Administrador</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="text-xs font-semibold text-gray-500">Unidade (Empresa)</label>
+                                <select 
+                                    value={editingUser.location || 'Caratinga'} 
+                                    onChange={e => setEditingUser({...editingUser, location: e.target.value as 'Caratinga' | 'Ponte Nova'})}
+                                    className="w-full border rounded-lg p-2 mt-1 bg-white"
+                                >
+                                    <option value="Caratinga">Caratinga</option>
+                                    <option value="Ponte Nova">Ponte Nova</option>
                                 </select>
                             </div>
                             <button 

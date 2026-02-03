@@ -28,17 +28,23 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentTab, onTabChang
         </div>
         
         <div className="relative">
-            <div className="flex items-center bg-gray-100 rounded-full p-1 pl-3 gap-2">
-                <MapPin size={14} className="text-gray-500" />
-                <select 
-                    value={selectedLocation}
-                    onChange={(e) => onLocationChange(e.target.value)}
-                    className="bg-transparent text-xs font-semibold text-gray-700 outline-none appearance-none pr-2 cursor-pointer"
-                >
-                    <option value="all">Todas as Unidades</option>
-                    <option value="Caratinga">Caratinga</option>
-                    <option value="Ponte Nova">Ponte Nova</option>
-                </select>
+            <div className={clsx("flex items-center bg-gray-100 rounded-full p-1 pl-3 gap-2", !isAdmin && "bg-brand-50 border border-brand-100")}>
+                <MapPin size={14} className={clsx(!isAdmin ? "text-brand-500" : "text-gray-500")} />
+                {isAdmin ? (
+                    <select 
+                        value={selectedLocation}
+                        onChange={(e) => onLocationChange(e.target.value)}
+                        className="bg-transparent text-xs font-semibold text-gray-700 outline-none appearance-none pr-2 cursor-pointer"
+                    >
+                        <option value="all">Todas as Unidades</option>
+                        <option value="Caratinga">Caratinga</option>
+                        <option value="Ponte Nova">Ponte Nova</option>
+                    </select>
+                ) : (
+                    <span className="text-xs font-bold text-brand-700 pr-3 py-0.5">
+                        {currentUser?.location || 'Caratinga'}
+                    </span>
+                )}
             </div>
         </div>
       </header>
