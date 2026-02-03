@@ -108,7 +108,7 @@ export const Settings: React.FC<SettingsProps> = ({ categories, receipts, refres
   };
 
   return (
-    <div className="h-full overflow-y-auto bg-gray-50 p-4 pb-24 relative">
+    <div className="bg-gray-50 p-4 relative">
       <h2 className="text-2xl font-bold text-gray-900 mb-6">Configurações</h2>
 
       {/* Stats */}

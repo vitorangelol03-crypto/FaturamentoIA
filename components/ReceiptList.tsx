@@ -449,7 +449,7 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
       </div>
 
       {/* List Content */}
-      <div className="flex-1 overflow-y-auto p-4 pb-24">
+      <div className="p-4 space-y-3">
         {filteredReceipts.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-48 text-gray-400">
                 <Search size={32} className="mb-2 opacity-50"/>

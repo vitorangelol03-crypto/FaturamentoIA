@@ -52,8 +52,19 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved }) =
     ? ((processedCount + errorCount) / totalCount) * 100 
     : 0;
   
-  // Verifica se tudo que estava na fila já foi processado (sucesso ou erro)
   const isQueueFinished = queue.length > 0 && !queue.some(i => ['waiting', 'processing', 'saving'].includes(i.status));
+
+  // --- CAMERA INPUT HANDLING (Hiding Nav) ---
+  const handleInputFocus = () => {
+    document.body.classList.add('camera-active');
+  };
+
+  const handleInputBlur = () => {
+    // Pequeno delay para evitar flash
+    setTimeout(() => {
+        document.body.classList.remove('camera-active');
+    }, 500);
+  };
 
   // --- CAMERA FUNCTIONS ---
 
@@ -135,6 +146,8 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved }) =
   // --- FILE HANDLING ---
 
   const handleFilesSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    handleInputBlur(); // Restaura menu
+
     if (e.target.files && e.target.files.length > 0) {
       const newItems: QueueItem[] = Array.from(e.target.files).map(file => ({
         id: Math.random().toString(36).substr(2, 9),
@@ -211,6 +224,7 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved }) =
   useEffect(() => {
       return () => {
           stopCamera();
+          document.body.classList.remove('camera-active');
       };
   }, []);
 
@@ -413,9 +427,10 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved }) =
   }
 
   // 2. CAMERA MODE
+  // ATENÇÃO: z-index 100 para ficar acima do menu inferior (z-50)
   if (mode === 'camera') {
       return (
-          <div className="fixed inset-0 z-50 bg-black flex flex-col">
+          <div className="fixed inset-0 z-[100] bg-black flex flex-col">
               {/* Top Bar */}
               <div className="absolute top-0 left-0 right-0 p-4 flex justify-between items-center z-10 bg-gradient-to-b from-black/50 to-transparent">
                   <div className="text-white font-medium flex items-center gap-2">
@@ -451,7 +466,7 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved }) =
               </div>
 
               {/* Bottom Bar (Shutter) */}
-              <div className="h-32 bg-black flex items-center justify-center relative">
+              <div className="h-32 bg-black flex items-center justify-center relative pb-safe-bottom">
                   {/* Gallery/Prev Thumbnail (Optional placeholder) */}
                   <div className="absolute left-6 bottom-10">
                       {queue.length > 0 && queue[queue.length-1].imagePreview && (
@@ -642,6 +657,7 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved }) =
             className="hidden" 
             ref={fileInputRef}
             onChange={handleFilesSelect}
+            onClick={handleInputFocus} // Ativa modo câmera (esconde menu)
         />
 
         {/* Botão Câmera Direta (Custom WebRTC) */}

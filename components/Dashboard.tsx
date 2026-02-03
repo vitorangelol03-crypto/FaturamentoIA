@@ -81,7 +81,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ receipts, categories }) =>
   };
 
   return (
-    <div className="p-4 pb-24 space-y-6 overflow-y-auto h-full">
+    <div className="p-4 space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h2 className="text-2xl font-bold text-gray-800">Dashboard</h2>
         <div className="flex bg-gray-200 p-1 rounded-lg overflow-x-auto max-w-full">
