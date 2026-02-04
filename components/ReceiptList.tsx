@@ -1,6 +1,6 @@
-import React, { useState, useMemo } from 'react';
-import { Receipt, Category, ViewMode, PeriodFilter } from '../types';
-import { LayoutGrid, List, AlignJustify, Search, ChevronDown, ChevronUp, Image as ImageIcon, Filter, Edit2, X, Save, Loader2, Download, Maximize2, Calendar, CreditCard, Tag, FileText, MapPin } from 'lucide-react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Receipt, Category, ViewMode, PeriodFilter, User } from '../types';
+import { LayoutGrid, List, AlignJustify, Search, ChevronDown, ChevronUp, Image as ImageIcon, Filter, Edit2, X, Save, Loader2, Download, Maximize2, Calendar, CreditCard, Tag, FileText, MapPin, Lock, Clock } from 'lucide-react';
 import { clsx } from 'clsx';
 import { generatePDFReport, generateSingleReceiptPDF } from '../services/pdfService';
 import { supabase } from '../services/supabaseClient';
@@ -9,9 +9,10 @@ interface ReceiptListProps {
   receipts: Receipt[];
   categories: Category[];
   onRefresh?: () => void;
+  currentUser: User;
 }
 
-export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, onRefresh }) => {
+export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, onRefresh, currentUser }) => {
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [searchQuery, setSearchQuery] = useState('');
   const [period, setPeriod] = useState<PeriodFilter>('current_month');
@@ -25,6 +26,41 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
   
   const [isSavingEdit, setIsSavingEdit] = useState(false);
+
+  // Force re-render periodically to update the "isEditable" status
+  const [currentTime, setCurrentTime] = useState(Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(Date.now()), 60000); // Check every minute
+    return () => clearInterval(timer);
+  }, []);
+
+  const isAdmin = currentUser.role === 'admin' || currentUser.username === 'zoork22';
+
+  // Logic: Can Edit?
+  const canEditReceipt = (receipt: Receipt): boolean => {
+    if (isAdmin) return true;
+
+    // Check time diff
+    const createdTime = new Date(receipt.created_at).getTime();
+    const now = currentTime;
+    const diffMinutes = (now - createdTime) / (1000 * 60);
+
+    return diffMinutes <= 5;
+  };
+
+  // Helper to get time remaining for edit (if applicable)
+  const getTimeRemaining = (receipt: Receipt): string | null => {
+      if (isAdmin) return null;
+      const createdTime = new Date(receipt.created_at).getTime();
+      const now = currentTime;
+      const diffMinutes = (now - createdTime) / (1000 * 60);
+      
+      if (diffMinutes > 5) return null;
+      
+      const remaining = 5 - diffMinutes;
+      if (remaining < 1) return "< 1 min";
+      return `${Math.ceil(remaining)} min`;
+  };
 
   // Filter Logic
   const filteredReceipts = useMemo(() => {
@@ -84,7 +120,11 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
 
   const handleEditClick = (e: React.MouseEvent, receipt: Receipt) => {
       e.stopPropagation();
-      setEditingReceipt(receipt);
+      if (canEditReceipt(receipt)) {
+          setEditingReceipt(receipt);
+      } else {
+          alert("O tempo limite para edição (5 minutos) expirou. Contate o administrador.");
+      }
   };
 
   const handleCardClick = (receipt: Receipt) => {
@@ -117,7 +157,7 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
           if (onRefresh) onRefresh();
       } catch (error) {
           console.error("Error updating receipt", error);
-          alert("Erro ao atualizar nota.");
+          alert("Erro ao atualizar nota. O tempo limite pode ter expirado durante a edição.");
       } finally {
           setIsSavingEdit(false);
       }
@@ -269,16 +309,32 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
                         <Download size={18} />
                         PDF
                     </button>
-                    <button 
-                        onClick={(e) => {
-                             setViewingReceipt(null);
-                             handleEditClick(e, viewingReceipt);
-                        }}
-                        className="flex-1 flex items-center justify-center gap-2 bg-brand-600 text-white py-3 rounded-xl font-medium hover:bg-brand-700 transition-colors shadow-sm"
-                    >
-                        <Edit2 size={18} />
-                        Editar
-                    </button>
+                    
+                    {canEditReceipt(viewingReceipt) ? (
+                        <button 
+                            onClick={(e) => {
+                                setViewingReceipt(null);
+                                handleEditClick(e, viewingReceipt);
+                            }}
+                            className="flex-1 flex items-center justify-center gap-2 bg-brand-600 text-white py-3 rounded-xl font-medium hover:bg-brand-700 transition-colors shadow-sm"
+                        >
+                            <Edit2 size={18} />
+                            Editar
+                            {!isAdmin && (
+                                <span className="text-[10px] bg-white/20 px-1.5 rounded ml-1">
+                                    {getTimeRemaining(viewingReceipt)}
+                                </span>
+                            )}
+                        </button>
+                    ) : (
+                        <button 
+                            disabled
+                            className="flex-1 flex items-center justify-center gap-2 bg-gray-100 text-gray-400 py-3 rounded-xl font-medium cursor-not-allowed border border-gray-200"
+                        >
+                            <Lock size={16} />
+                            Bloqueado
+                        </button>
+                    )}
                 </div>
             </div>
         </div>
@@ -289,7 +345,14 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
           <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4 animate-in fade-in duration-200">
               <div className="bg-white rounded-xl shadow-xl w-full max-w-sm overflow-hidden flex flex-col max-h-[90vh]">
                   <div className="flex items-center justify-between p-4 border-b border-gray-100">
-                      <h3 className="font-bold text-gray-900">Editar Nota</h3>
+                      <h3 className="font-bold text-gray-900 flex items-center gap-2">
+                        <Edit2 size={18} /> Editar Nota
+                      </h3>
+                      {!isAdmin && (
+                         <div className="flex items-center gap-1 text-[10px] text-orange-600 bg-orange-50 px-2 py-1 rounded-full font-bold">
+                             <Clock size={12} /> {getTimeRemaining(editingReceipt)} restantes
+                         </div>
+                      )}
                       <button onClick={() => setEditingReceipt(null)} className="text-gray-500 hover:text-gray-800">
                           <X size={20} />
                       </button>
@@ -322,14 +385,20 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
                             {/* Seletor de Localização na Edição */}
                             <div>
                                 <label className="block text-xs font-medium text-gray-500 mb-1">Unidade / Empresa</label>
-                                <select 
-                                    value={editingReceipt.location || 'Caratinga'}
-                                    onChange={(e) => setEditingReceipt({...editingReceipt, location: e.target.value})}
-                                    className="w-full bg-white text-gray-900 border-b border-gray-300 focus:border-brand-500 outline-none py-1 font-medium"
-                                >
-                                    <option value="Caratinga">Caratinga</option>
-                                    <option value="Ponte Nova">Ponte Nova</option>
-                                </select>
+                                {isAdmin ? (
+                                    <select 
+                                        value={editingReceipt.location || 'Caratinga'}
+                                        onChange={(e) => setEditingReceipt({...editingReceipt, location: e.target.value})}
+                                        className="w-full bg-white text-gray-900 border-b border-gray-300 focus:border-brand-500 outline-none py-1 font-medium"
+                                    >
+                                        <option value="Caratinga">Caratinga</option>
+                                        <option value="Ponte Nova">Ponte Nova</option>
+                                    </select>
+                                ) : (
+                                    <div className="flex items-center gap-1 py-1 border-b border-gray-100 text-gray-600 font-medium">
+                                        <MapPin size={14} /> {editingReceipt.location || 'Caratinga'}
+                                    </div>
+                                )}
                             </div>
 
                             <div className="flex gap-4">
@@ -486,6 +555,7 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
             )}>
                 {filteredReceipts.map(receipt => {
                     const category = categories.find(c => c.id === receipt.category_id);
+                    const editable = canEditReceipt(receipt);
                     
                     if (viewMode === 'grid') {
                         return (
@@ -503,6 +573,11 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
                                     <div className="absolute top-2 right-2 px-2 py-0.5 rounded-full text-[10px] font-bold text-white shadow-sm z-10" style={{backgroundColor: category?.color}}>
                                         {category?.name.slice(0, 4)}..
                                     </div>
+                                    {!editable && (
+                                        <div className="absolute top-2 left-2 bg-gray-800/80 text-white p-1 rounded-full">
+                                            <Lock size={10} />
+                                        </div>
+                                    )}
                                 </div>
                                 <div className="p-3">
                                     <p className="font-semibold text-gray-900 text-sm truncate">{receipt.establishment}</p>
@@ -557,13 +632,20 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
                                                     <Download size={12} />
                                                     <span className="font-medium">PDF</span>
                                                 </button>
-                                                <button 
-                                                    onClick={(e) => handleEditClick(e, receipt)}
-                                                    className="flex items-center gap-1 bg-white border border-gray-200 px-2 py-1 rounded hover:bg-brand-50 hover:text-brand-600 hover:border-brand-200 transition-colors"
-                                                >
-                                                    <Edit2 size={12} />
-                                                    <span className="font-medium">Editar</span>
-                                                </button>
+                                                {editable ? (
+                                                    <button 
+                                                        onClick={(e) => handleEditClick(e, receipt)}
+                                                        className="flex items-center gap-1 bg-white border border-gray-200 px-2 py-1 rounded hover:bg-brand-50 hover:text-brand-600 hover:border-brand-200 transition-colors"
+                                                    >
+                                                        <Edit2 size={12} />
+                                                        <span className="font-medium">Editar</span>
+                                                    </button>
+                                                ) : (
+                                                    <div className="flex items-center gap-1 bg-gray-100 border border-gray-200 px-2 py-1 rounded text-gray-400 cursor-not-allowed">
+                                                        <Lock size={12} />
+                                                        <span>Bloqueado</span>
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
 
@@ -598,11 +680,16 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
                             onClick={() => handleCardClick(receipt)}
                             className="bg-white rounded-xl shadow-sm p-3 flex gap-4 border border-gray-100 cursor-pointer hover:bg-gray-50/50 transition-colors"
                         >
-                            <div className="w-16 h-16 rounded-lg bg-gray-100 flex-shrink-0 overflow-hidden">
+                            <div className="w-16 h-16 rounded-lg bg-gray-100 flex-shrink-0 overflow-hidden relative">
                                 {receipt.image_url ? (
                                     <img src={receipt.image_url} className="w-full h-full object-cover" />
                                 ) : (
                                     <div className="w-full h-full flex items-center justify-center text-gray-300"><ImageIcon size={20} /></div>
+                                )}
+                                {!editable && (
+                                    <div className="absolute top-1 left-1 bg-gray-800/80 text-white p-0.5 rounded-full">
+                                        <Lock size={10} />
+                                    </div>
                                 )}
                             </div>
                             <div className="flex-1 min-w-0 flex flex-col justify-center">
@@ -617,13 +704,24 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
                                         >
                                             <Download size={16} />
                                         </button>
-                                        <button 
-                                            onClick={(e) => handleEditClick(e, receipt)}
-                                            className="p-1.5 text-gray-400 hover:text-brand-600 hover:bg-gray-100 rounded-full transition-colors"
-                                            title="Editar"
-                                        >
-                                            <Edit2 size={16} />
-                                        </button>
+                                        
+                                        {editable ? (
+                                            <button 
+                                                onClick={(e) => handleEditClick(e, receipt)}
+                                                className="p-1.5 text-gray-400 hover:text-brand-600 hover:bg-gray-100 rounded-full transition-colors"
+                                                title="Editar"
+                                            >
+                                                <Edit2 size={16} />
+                                            </button>
+                                        ) : (
+                                            <button 
+                                                disabled
+                                                className="p-1.5 text-gray-300 cursor-not-allowed"
+                                                title="Edição bloqueada (limite de tempo)"
+                                            >
+                                                <Lock size={16} />
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
                                 <div className="flex justify-between items-end mt-1">

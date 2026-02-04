@@ -156,7 +156,7 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, cur
     handleInputBlur(); // Restaura menu
 
     if (e.target.files && e.target.files.length > 0) {
-      const newItems: QueueItem[] = Array.from(e.target.files).map(file => ({
+      const newItems: QueueItem[] = Array.from(e.target.files).map((file: File) => ({
         id: Math.random().toString(36).substr(2, 9),
         file,
         status: 'waiting',

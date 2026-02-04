@@ -334,7 +334,7 @@ export const AdminPanel: React.FC = () => {
                                     type="text" 
                                     value={editingUser.full_name} 
                                     onChange={e => setEditingUser({...editingUser, full_name: e.target.value})}
-                                    className="w-full border rounded-lg p-2 mt-1 focus:border-brand-500 outline-none"
+                                    className="w-full border rounded-lg p-2 mt-1 focus:border-brand-500 outline-none bg-white text-gray-900"
                                 />
                             </div>
                             <div>
@@ -343,7 +343,7 @@ export const AdminPanel: React.FC = () => {
                                     type="text" 
                                     value={editingUser.username} 
                                     onChange={e => setEditingUser({...editingUser, username: e.target.value})}
-                                    className="w-full border rounded-lg p-2 mt-1 focus:border-brand-500 outline-none"
+                                    className="w-full border rounded-lg p-2 mt-1 focus:border-brand-500 outline-none bg-white text-gray-900"
                                 />
                             </div>
                             <div>
@@ -351,7 +351,7 @@ export const AdminPanel: React.FC = () => {
                                 <select 
                                     value={editingUser.role || 'user'} 
                                     onChange={e => setEditingUser({...editingUser, role: e.target.value as 'user' | 'admin'})}
-                                    className="w-full border rounded-lg p-2 mt-1 bg-white"
+                                    className="w-full border rounded-lg p-2 mt-1 bg-white text-gray-900"
                                 >
                                     <option value="user">Usuário Comum</option>
                                     <option value="admin">Administrador</option>
@@ -362,7 +362,7 @@ export const AdminPanel: React.FC = () => {
                                 <select 
                                     value={editingUser.location || 'Caratinga'} 
                                     onChange={e => setEditingUser({...editingUser, location: e.target.value as 'Caratinga' | 'Ponte Nova'})}
-                                    className="w-full border rounded-lg p-2 mt-1 bg-white"
+                                    className="w-full border rounded-lg p-2 mt-1 bg-white text-gray-900"
                                 >
                                     <option value="Caratinga">Caratinga</option>
                                     <option value="Ponte Nova">Ponte Nova</option>
@@ -398,7 +398,7 @@ export const AdminPanel: React.FC = () => {
                                     value={newPassword} 
                                     onChange={e => setNewPassword(e.target.value)}
                                     placeholder="Digite a nova senha..."
-                                    className="w-full border rounded-lg p-2 mt-1 focus:border-brand-500 outline-none font-mono"
+                                    className="w-full border rounded-lg p-2 mt-1 focus:border-brand-500 outline-none font-mono bg-white text-gray-900"
                                 />
                             </div>
                             <button 

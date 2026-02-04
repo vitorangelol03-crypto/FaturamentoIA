@@ -142,6 +142,7 @@ export default function App() {
                 receipts={receipts} 
                 categories={categories} 
                 onRefresh={fetchData} 
+                currentUser={user}
             />
         )}
         {currentTab === 'add' && <AddReceipt categories={categories} onSaved={handleReceiptSaved} currentUser={user} />}
