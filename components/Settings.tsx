@@ -57,20 +57,16 @@ export const Settings: React.FC<SettingsProps> = ({ categories, receipts, refres
   };
 
   const executeClearData = async (period: 'current_month' | 'last_month' | 'last_3_months' | 'all') => {
+      // Segurança extra: Se não for admin, não executa nada, mesmo se chamar a função
+      if (!isAdmin) return;
+
       setActiveDeleteAction(period);
 
       try {
           let query = supabase.from('receipts').delete();
           
-          // Se não for admin, restringe ao próprio usuário.
-          // Se for admin, a query deleta qualquer nota que corresponda aos critérios de data (perigoso, mas poderoso).
-          if (!isAdmin) {
-             query = query.eq('user_id', userId);
-          } else {
-             // Opcional: Se for admin, talvez queira deletar APENAS as que não tem dono ou as dele?
-             // Por enquanto, "Limpar Notas" para admin limpará TUDO no banco que bate com a data.
-             // Isso permite limpar as notas antigas (user_id = null).
-          }
+          // Como apenas Admin acessa isso agora, a query deleta qualquer nota que corresponda aos critérios de data.
+          // Isso permite limpar o banco geral.
 
           const now = new Date();
           let startDate: Date | null = null;
@@ -188,27 +184,32 @@ export const Settings: React.FC<SettingsProps> = ({ categories, receipts, refres
             Exportar Backup (JSON)
         </button>
 
-        <button 
-            onClick={() => setShowDeleteModal(true)}
-            className="w-full flex items-center justify-center gap-2 border border-red-200 text-red-600 font-medium py-3 rounded-lg hover:bg-red-50 transition-colors"
-        >
-            <Eraser size={18} />
-            Limpar Notas...
-        </button>
-        <p className="text-[10px] text-gray-400 text-center pt-1">
-            <AlertTriangle size={10} className="inline mr-1" />
-            Atenção: A limpeza de dados remove permanentemente os registros {isAdmin ? 'de TODOS os usuários' : 'da sua conta'}.
-        </p>
+        {/* Botão de Limpar Notas - Apenas para Admins */}
+        {isAdmin && (
+            <>
+                <button 
+                    onClick={() => setShowDeleteModal(true)}
+                    className="w-full flex items-center justify-center gap-2 border border-red-200 text-red-600 font-medium py-3 rounded-lg hover:bg-red-50 transition-colors"
+                >
+                    <Eraser size={18} />
+                    Limpar Notas...
+                </button>
+                <p className="text-[10px] text-gray-400 text-center pt-1">
+                    <AlertTriangle size={10} className="inline mr-1" />
+                    Atenção: A limpeza de dados remove permanentemente os registros de TODOS os usuários.
+                </p>
+            </>
+        )}
       </div>
 
       {/* Delete Modal */}
-      {showDeleteModal && (
+      {showDeleteModal && isAdmin && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
             <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-200">
                 <div className="bg-red-50 p-4 border-b border-red-100 flex justify-between items-center">
                     <h3 className="font-bold text-red-700 flex items-center gap-2">
                         <Eraser size={20} />
-                        Limpar Notas {isAdmin && '(Modo Admin)'}
+                        Limpar Notas (Admin)
                     </h3>
                     <button onClick={() => setShowDeleteModal(false)} className="text-red-400 hover:text-red-700">
                         <X size={24} />
