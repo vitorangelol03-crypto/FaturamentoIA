@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useRef } from 'react';
 import { User, Receipt } from '../types';
 import { authService } from '../services/authService';
@@ -6,7 +7,7 @@ import { REQUIRED_CNPJ } from '../constants';
 import { Check, X, Shield, RefreshCw, User as UserIcon, Loader2, Users, UserCog, Key, Trash2, Ban, Search, Save, Edit, MapPin, FileText, ExternalLink, DollarSign, Eye, Calendar, CreditCard, Tag, Maximize2, Image as ImageIcon, Clock, Activity, AlertCircle, Wifi, Globe, Smartphone, DownloadCloud, Server } from 'lucide-react';
 import { clsx } from 'clsx';
 
-type AdminTab = 'pending' | 'manage' | 'audit';
+type AdminTab = 'pending' | 'manage'; // Removido 'audit'
 
 export const AdminPanel: React.FC = () => {
     const [activeTab, setActiveTab] = useState<AdminTab>('pending');
@@ -14,14 +15,7 @@ export const AdminPanel: React.FC = () => {
     // Data States
     const [pendingUsers, setPendingUsers] = useState<User[]>([]);
     const [allUsers, setAllUsers] = useState<User[]>([]);
-    const [auditReceipts, setAuditReceipts] = useState<Receipt[]>([]);
     const [loading, setLoading] = useState(false);
-    
-    // Real-time Visual States
-    const [isLive, setIsLive] = useState(false);
-    const [lastPacketTime, setLastPacketTime] = useState<Date | null>(null);
-    const [highlightUpdate, setHighlightUpdate] = useState(false);
-    const [isSimulatingSefaz, setIsSimulatingSefaz] = useState(false);
     
     // Action States
     const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -31,12 +25,8 @@ export const AdminPanel: React.FC = () => {
     const [editingUser, setEditingUser] = useState<User | null>(null);
     const [passwordUser, setPasswordUser] = useState<User | null>(null);
     const [newPassword, setNewPassword] = useState('');
-    
-    // Audit View Modal
-    const [viewingAuditReceipt, setViewingAuditReceipt] = useState<Receipt | null>(null);
-    const [zoomedImage, setZoomedImage] = useState<string | null>(null);
 
-    // Fetch Users (Existing)
+    // Fetch Users
     const fetchData = async () => {
         setLoading(true);
         try {
@@ -46,100 +36,12 @@ export const AdminPanel: React.FC = () => {
             ]);
             setPendingUsers(pending);
             setAllUsers(all);
-
-            // Se estiver na aba de auditoria, busca as notas também
-            if (activeTab === 'audit') {
-                await fetchAuditData();
-            }
         } catch (error) {
             console.error(error);
         } finally {
             setLoading(false);
         }
     };
-
-    // Fetch Audit Data (Robust & Clean)
-    const fetchAuditData = async () => {
-        const targetClean = REQUIRED_CNPJ.replace(/\D/g, '');
-        
-        // Busca notas ordenadas por data de criação (mais recentes primeiro)
-        const { data, error } = await supabase
-            .from('receipts')
-            .select('*')
-            .order('created_at', { ascending: false });
-
-        if (!error && data) {
-            // Filtra no cliente para garantir match exato independente da formatação no banco
-            const filtered = (data as Receipt[]).filter(r => {
-                const dbClean = r.cnpj?.replace(/\D/g, '') || '';
-                return dbClean === targetClean;
-            });
-            setAuditReceipts(filtered);
-            setLastPacketTime(new Date());
-        }
-    };
-
-    // Real-time Subscription for Audit (SEFAZ Style)
-    useEffect(() => {
-        let channel: any;
-
-        if (activeTab === 'audit') {
-            fetchAuditData(); // Carga inicial
-            
-            // Cria canal de subscrição para tabela receipts
-            channel = supabase
-                .channel('audit-room')
-                .on(
-                    'postgres_changes', 
-                    { event: 'INSERT', schema: 'public', table: 'receipts' }, 
-                    (payload) => {
-                        // Quando entra uma nota nova, verificamos se é do CNPJ alvo
-                        const newReceipt = payload.new as Receipt;
-                        const targetClean = REQUIRED_CNPJ.replace(/\D/g, '');
-                        const newReceiptClean = newReceipt.cnpj?.replace(/\D/g, '') || '';
-
-                        if (newReceiptClean === targetClean) {
-                            // Atualiza a lista em tempo real adicionando a nova nota no topo
-                            setAuditReceipts(prev => [newReceipt, ...prev]);
-                            setLastPacketTime(new Date());
-                            
-                            // Visual Effects
-                            setHighlightUpdate(true);
-                            setTimeout(() => setHighlightUpdate(false), 2000);
-
-                            // Sound Effect (Beep simples)
-                            try {
-                                const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-                                if (AudioContext) {
-                                    const ctx = new AudioContext();
-                                    const osc = ctx.createOscillator();
-                                    const gain = ctx.createGain();
-                                    osc.connect(gain);
-                                    gain.connect(ctx.destination);
-                                    osc.frequency.value = 880; // A5
-                                    gain.gain.value = 0.1;
-                                    osc.start();
-                                    setTimeout(() => osc.stop(), 150);
-                                }
-                            } catch (e) { /* ignore */ }
-                        }
-                    }
-                )
-                .subscribe((status) => {
-                    if (status === 'SUBSCRIBED') {
-                        setIsLive(true);
-                    } else {
-                        setIsLive(false);
-                    }
-                });
-        } else {
-            setIsLive(false);
-        }
-
-        return () => {
-            if (channel) supabase.removeChannel(channel);
-        };
-    }, [activeTab]);
 
     useEffect(() => {
         fetchData();
@@ -163,7 +65,7 @@ export const AdminPanel: React.FC = () => {
         if (!confirm('Rejeitar solicitação? O usuário não poderá logar.')) return;
         setActionLoading(id);
         try {
-            await authService.rejectUser(id); // Marca como rejected
+            await authService.rejectUser(id); 
             await fetchData();
         } catch (e) {
             alert('Erro ao rejeitar.');
@@ -236,200 +138,15 @@ export const AdminPanel: React.FC = () => {
         }
     };
 
-    // --- SIMULAÇÃO DE INTEGRAÇÃO COM SEFAZ ---
-    const simulateSefazSync = async () => {
-        setIsSimulatingSefaz(true);
-        
-        // Simula delay de rede da API do governo
-        await new Promise(resolve => setTimeout(resolve, 2000));
-
-        try {
-            // Gera dados aleatórios para simular uma nota externa
-            const randomAmount = (Math.random() * 5000) + 100;
-            const randomEstablishments = [
-                "DISTRIBUIDORA DE BEBIDAS ALFA LTDA", 
-                "ATACADÃO DE MATERIAIS DE CONSTRUÇÃO", 
-                "ELETRO FORNECEDORA S.A.", 
-                "SERVIÇOS DE MANUTENÇÃO GLOBAL",
-                "POSTO DE COMBUSTIVEL RODOVIA"
-            ];
-            const randomEstab = randomEstablishments[Math.floor(Math.random() * randomEstablishments.length)];
-            const randomKey = Array(44).fill(0).map(() => Math.floor(Math.random() * 10)).join('');
-            
-            // Insere no banco como se fosse uma API externa escrevendo
-            const { error } = await supabase.from('receipts').insert({
-                establishment: randomEstab,
-                date: new Date().toISOString(),
-                total_amount: randomAmount,
-                cnpj: REQUIRED_CNPJ.replace(/\D/g, ''),
-                receipt_number: Math.floor(Math.random() * 99999).toString(),
-                category_id: null, // Notas externas geralmente vêm sem categoria classificada
-                payment_method: "Boleto Bancário",
-                location: 'Caratinga', // Assume sede
-                user_id: null, // Sem usuário associado pois veio da SEFAZ
-                source: 'external', // MARCA COMO EXTERNA
-                access_key: randomKey,
-                image_url: null // Notas de API vêm sem foto, geralmente XML (simulado aqui como null)
-            });
-
-            if (error) throw error;
-
-            // O Realtime subscription vai pegar essa inserção e atualizar a tela automaticamente
-            // alert("Nota fiscal encontrada na base da SEFAZ e sincronizada!");
-
-        } catch (e) {
-            console.error(e);
-            alert("Erro na sincronização simulada.");
-        } finally {
-            setIsSimulatingSefaz(false);
-        }
-    };
-
-    // Helper to find user name by ID
-    const getUserName = (userId?: string | null) => {
-        if (!userId) return null;
-        const u = allUsers.find(user => user.id === userId) || pendingUsers.find(user => user.id === userId);
-        return u ? u.full_name : 'ID: ' + userId.slice(0,6);
-    };
-
     // --- Filter Users ---
     const filteredUsers = allUsers.filter(u => 
         u.full_name.toLowerCase().includes(searchQuery.toLowerCase()) || 
         u.username.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
-    // Audit Stats
-    const auditTotal = auditReceipts.reduce((acc, r) => acc + Number(r.total_amount), 0);
-
     return (
         <div className="p-4 bg-gray-50 min-h-full relative">
             
-             {/* --- MODAL: IMAGE ZOOM --- */}
-            {zoomedImage && (
-                <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/90 p-4 animate-in fade-in duration-200" onClick={() => setZoomedImage(null)}>
-                    <div className="relative w-full max-w-4xl h-full flex items-center justify-center">
-                        <img src={zoomedImage} className="max-w-full max-h-full object-contain rounded-md" alt="Zoom" />
-                        <button className="absolute top-4 right-4 bg-white/20 text-white p-2 rounded-full hover:bg-white/40">
-                            <X size={24} />
-                        </button>
-                    </div>
-                </div>
-            )}
-
-            {/* --- MODAL: AUDIT DETAIL VIEW --- */}
-            {viewingAuditReceipt && (
-                <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/50 sm:p-4 animate-in fade-in duration-200">
-                    <div className="bg-white w-full max-w-lg sm:rounded-2xl rounded-t-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in slide-in-from-bottom-5">
-                        {/* Header com distinção de origem */}
-                        <div className={clsx("flex items-center justify-between p-4 border-b", viewingAuditReceipt.source === 'external' ? "bg-blue-50 border-blue-100" : "bg-gray-50 border-gray-100")}>
-                            <h3 className="font-bold text-gray-900 flex items-center gap-2">
-                                {viewingAuditReceipt.source === 'external' ? (
-                                    <><Globe size={18} className="text-blue-600"/> Nota Fiscal Eletrônica (SEFAZ)</>
-                                ) : (
-                                    <><Smartphone size={18} className="text-brand-600"/> Captura via App</>
-                                )}
-                            </h3>
-                            <button onClick={() => setViewingAuditReceipt(null)} className="text-gray-400 hover:text-gray-800">
-                                <X size={20} />
-                            </button>
-                        </div>
-                        <div className="overflow-y-auto p-0">
-                             <div className="relative h-48 bg-gray-100 flex items-center justify-center overflow-hidden group cursor-zoom-in border-b border-gray-200" onClick={() => viewingAuditReceipt.image_url && setZoomedImage(viewingAuditReceipt.image_url)}>
-                                {viewingAuditReceipt.image_url ? (
-                                    <>
-                                        <img src={viewingAuditReceipt.image_url} className="w-full h-full object-contain" alt="Nota" />
-                                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/10">
-                                            <span className="bg-black/50 text-white px-3 py-1 rounded-full text-xs flex items-center gap-1">
-                                                <Maximize2 size={12} /> Ampliar
-                                            </span>
-                                        </div>
-                                    </>
-                                ) : (
-                                    <div className="flex flex-col items-center text-gray-400 p-6 text-center">
-                                        {viewingAuditReceipt.source === 'external' ? (
-                                            <>
-                                                <Server size={48} className="text-blue-200 mb-2"/>
-                                                <p className="text-sm font-semibold text-gray-500">Documento Digital (XML)</p>
-                                                <p className="text-xs text-gray-400 mt-1">Importado automaticamente da Receita Federal</p>
-                                            </>
-                                        ) : (
-                                            <>
-                                                <ImageIcon size={32} />
-                                                <span className="text-xs mt-2">Sem imagem</span>
-                                            </>
-                                        )}
-                                    </div>
-                                )}
-                            </div>
-                            <div className="p-5 space-y-4">
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <p className="text-xs text-gray-500 uppercase font-semibold">Emitido Em</p>
-                                        <p className="text-gray-900 font-medium">{new Date(viewingAuditReceipt.date).toLocaleDateString('pt-BR')}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-xs text-gray-500 uppercase font-semibold">Valor Total</p>
-                                        <p className="text-brand-600 font-bold text-lg">R$ {Number(viewingAuditReceipt.total_amount).toFixed(2)}</p>
-                                    </div>
-                                    <div className="col-span-2">
-                                        <p className="text-xs text-gray-500 uppercase font-semibold">Estabelecimento</p>
-                                        <p className="text-gray-900 font-medium">{viewingAuditReceipt.establishment}</p>
-                                    </div>
-                                    
-                                    {/* Exibe Chave de Acesso se for externa */}
-                                    {viewingAuditReceipt.access_key && (
-                                        <div className="col-span-2 bg-gray-50 p-2 rounded border border-gray-200 font-mono text-[10px] break-all text-gray-600">
-                                            <span className="block text-[8px] uppercase text-gray-400 font-sans font-bold mb-1">Chave de Acesso NFe</span>
-                                            {viewingAuditReceipt.access_key}
-                                        </div>
-                                    )}
-
-                                     <div className="col-span-2 bg-yellow-50 p-3 rounded-lg border border-yellow-100">
-                                        <p className="text-xs text-yellow-700 uppercase font-bold mb-1">Rastreabilidade</p>
-                                        <div className="grid grid-cols-2 gap-2 text-sm">
-                                            <div>
-                                                <span className="text-gray-500 text-xs">Origem:</span>
-                                                <p className="font-medium text-gray-900 flex items-center gap-1">
-                                                    {viewingAuditReceipt.source === 'external' ? <Globe size={12}/> : <Smartphone size={12}/>}
-                                                    {viewingAuditReceipt.source === 'external' ? 'Importação SEFAZ' : 'App do Usuário'}
-                                                </p>
-                                            </div>
-                                            <div>
-                                                <span className="text-gray-500 text-xs">Usuário:</span>
-                                                <p className="font-medium text-gray-900">
-                                                    {viewingAuditReceipt.user_id ? getUserName(viewingAuditReceipt.user_id) : <span className="text-gray-400 italic">Sistema (Auto)</span>}
-                                                </p>
-                                            </div>
-                                            <div className="col-span-2 mt-1">
-                                                <span className="text-gray-500 text-xs">CNPJ Destino:</span>
-                                                <p className="font-mono text-xs bg-white px-2 py-1 rounded border border-yellow-200 text-gray-700">
-                                                    {viewingAuditReceipt.cnpj || 'Não registrado'}
-                                                </p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                {viewingAuditReceipt.items && viewingAuditReceipt.items.length > 0 && (
-                                    <div>
-                                        <p className="text-xs text-gray-500 uppercase font-semibold mb-2">Itens Extraídos</p>
-                                        <ul className="text-sm space-y-1 bg-gray-50 p-3 rounded-lg border border-gray-100">
-                                            {viewingAuditReceipt.items.map((item, idx) => (
-                                                <li key={idx} className="flex justify-between">
-                                                    <span className="text-gray-700 truncate pr-2">{item.name}</span>
-                                                    <span className="text-gray-900 font-medium whitespace-nowrap">
-                                                        {item.totalPrice ? `R$ ${item.totalPrice.toFixed(2)}` : '-'}
-                                                    </span>
-                                                </li>
-                                            ))}
-                                        </ul>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-
             {/* Header */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 mb-4">
                 <div className="flex items-center justify-between mb-4">
@@ -461,161 +178,8 @@ export const AdminPanel: React.FC = () => {
                         <Users size={14} />
                         Usuários
                     </button>
-                    <button 
-                        onClick={() => setActiveTab('audit')}
-                        className={clsx("flex-1 min-w-[120px] py-2 text-xs font-medium rounded-md transition-all flex items-center justify-center gap-2", activeTab === 'audit' ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700")}
-                    >
-                        <Activity size={14} className={clsx(activeTab === 'audit' && "text-green-500")} />
-                        Monitor SEFAZ
-                    </button>
                 </div>
             </div>
-
-            {/* --- TAB: AUDIT CNPJ (SEFAZ STYLE) --- */}
-            {activeTab === 'audit' && (
-                <div className="space-y-4 animate-in fade-in slide-in-from-right-4">
-                    
-                    {/* Status Dashboard */}
-                    <div className="grid grid-cols-2 gap-3">
-                        <div className={clsx("bg-gray-800 text-white p-4 rounded-xl shadow-md col-span-2 relative overflow-hidden transition-all duration-300", highlightUpdate && "ring-4 ring-green-400 scale-[1.01]")}>
-                             <div className="absolute right-0 top-0 opacity-10">
-                                 <Shield size={120} />
-                             </div>
-                             <div className="flex justify-between items-start relative z-10">
-                                 <div>
-                                     <div className="flex items-center gap-2 mb-2">
-                                         {isLive ? (
-                                             <span className="flex h-3 w-3 relative">
-                                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                                                <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
-                                             </span>
-                                         ) : (
-                                             <span className="h-3 w-3 rounded-full bg-red-500"></span>
-                                         )}
-                                         <p className="text-xs font-bold uppercase tracking-wider text-gray-300 flex items-center gap-2">
-                                             {isLive ? 'Conexão Real-Time Ativa' : 'Desconectado'}
-                                         </p>
-                                     </div>
-                                     <h3 className="text-2xl font-mono font-bold tracking-tight">{REQUIRED_CNPJ}</h3>
-                                     <p className="text-xs text-gray-400 mt-1">Monitoramento Fiscal Contínuo</p>
-                                 </div>
-                                 <div className="text-right">
-                                     <p className="text-xs text-gray-400 uppercase">Total Acumulado</p>
-                                     <p className={clsx("text-2xl font-bold transition-colors", highlightUpdate ? "text-white" : "text-green-400")}>
-                                        R$ {auditTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                                     </p>
-                                     {lastPacketTime && (
-                                         <p className="text-[9px] text-gray-500 mt-1 font-mono flex items-center justify-end gap-1">
-                                             <Wifi size={8} />
-                                             Último Pulso: {lastPacketTime.toLocaleTimeString()}
-                                         </p>
-                                     )}
-                                 </div>
-                             </div>
-                        </div>
-                    </div>
-
-                    <div className="flex items-center justify-between mt-2 px-1">
-                         <h3 className="font-semibold text-gray-700 text-sm flex items-center gap-2">
-                            <Activity size={16} /> Transações Recentes
-                            <span className="bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full text-xs font-bold">{auditReceipts.length}</span>
-                        </h3>
-                        
-                        <div className="flex items-center gap-3">
-                            {/* BOTÃO DE SIMULAÇÃO SEFAZ */}
-                            <button 
-                                onClick={simulateSefazSync}
-                                disabled={isSimulatingSefaz}
-                                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-xs font-bold border border-blue-200 transition-colors"
-                            >
-                                {isSimulatingSefaz ? <Loader2 size={12} className="animate-spin" /> : <DownloadCloud size={12} />}
-                                {isSimulatingSefaz ? 'Buscando...' : 'Sincronizar SEFAZ'}
-                            </button>
-                            
-                            {lastPacketTime && (
-                                <span className="text-[10px] text-gray-400 flex items-center gap-1 animate-pulse">
-                                    <Clock size={10} /> Live
-                                </span>
-                            )}
-                        </div>
-                    </div>
-
-                    {loading && auditReceipts.length === 0 ? (
-                        <div className="flex justify-center py-10">
-                            <Loader2 className="animate-spin text-brand-500" size={32} />
-                        </div>
-                    ) : auditReceipts.length === 0 ? (
-                        <div className="text-center py-12 bg-white rounded-xl border border-dashed border-gray-200 text-gray-400">
-                            <AlertCircle size={32} className="mx-auto mb-2 opacity-20" />
-                            <p>Aguardando transações para este CNPJ...</p>
-                        </div>
-                    ) : (
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-sm text-left">
-                                    <thead className="bg-gray-50 text-gray-500 font-medium border-b border-gray-100">
-                                        <tr>
-                                            <th className="px-4 py-3 text-xs uppercase tracking-wider text-center w-12">Origem</th>
-                                            <th className="px-4 py-3 text-xs uppercase tracking-wider">Horário</th>
-                                            <th className="px-4 py-3 text-xs uppercase tracking-wider">Detalhe</th>
-                                            <th className="px-4 py-3 text-right text-xs uppercase tracking-wider">Valor</th>
-                                            <th className="px-4 py-3 text-center text-xs uppercase tracking-wider">Ação</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-gray-100">
-                                        {auditReceipts.map((receipt, index) => (
-                                            <tr key={receipt.id} className={clsx("hover:bg-blue-50/50 transition-colors", index === 0 && highlightUpdate && "bg-green-100 duration-1000 ease-out")}>
-                                                <td className="px-4 py-3 text-center">
-                                                    {receipt.source === 'external' ? (
-                                                        <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center mx-auto" title="Nota vinda da SEFAZ">
-                                                            <Globe size={14} />
-                                                        </div>
-                                                    ) : (
-                                                        <div className="w-8 h-8 rounded-full bg-gray-100 text-gray-500 flex items-center justify-center mx-auto" title="Capturada no App">
-                                                            <Smartphone size={14} />
-                                                        </div>
-                                                    )}
-                                                </td>
-                                                <td className="px-4 py-3 whitespace-nowrap text-gray-600">
-                                                    <div className="flex flex-col">
-                                                        <span className="font-mono font-medium text-gray-900">{new Date(receipt.date).toLocaleDateString('pt-BR')}</span>
-                                                        <span className="text-[10px] text-gray-400">{new Date(receipt.created_at).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'})}</span>
-                                                    </div>
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                     <div className="text-xs font-bold text-gray-900 truncate max-w-[140px]">{receipt.establishment}</div>
-                                                     <div className="flex items-center gap-1 mt-0.5">
-                                                        {receipt.user_id ? (
-                                                            <span className="text-[10px] text-gray-500 flex items-center gap-1">
-                                                                <UserIcon size={8} /> {getUserName(receipt.user_id)?.split(' ')[0]}
-                                                            </span>
-                                                        ) : (
-                                                            <span className="text-[9px] text-blue-600 bg-blue-50 px-1 rounded flex items-center gap-1">
-                                                                <Server size={8} /> XML Importado
-                                                            </span>
-                                                        )}
-                                                     </div>
-                                                </td>
-                                                <td className="px-4 py-3 text-right font-mono font-bold text-gray-900 whitespace-nowrap text-xs">
-                                                    R$ {Number(receipt.total_amount).toFixed(2)}
-                                                </td>
-                                                <td className="px-4 py-3 text-center">
-                                                    <button 
-                                                        onClick={() => setViewingAuditReceipt(receipt)}
-                                                        className="inline-flex items-center justify-center w-8 h-8 text-brand-600 bg-brand-50 hover:bg-brand-100 rounded-full transition-colors"
-                                                    >
-                                                        <Eye size={16} />
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    )}
-                </div>
-            )}
 
             {/* --- TAB: PENDING --- */}
             {activeTab === 'pending' && (

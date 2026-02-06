@@ -1,8 +1,11 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { Receipt, Category, ViewMode, PeriodFilter, User } from '../types';
-// Added Shield to the list of imports from lucide-react
-import { LayoutGrid, List, AlignJustify, Search, ChevronDown, ChevronUp, Image as ImageIcon, Filter, Edit2, X, Save, Loader2, Download, Maximize2, Calendar, CreditCard, Tag, FileText, MapPin, Lock, Clock, User as UserIcon, Shield } from 'lucide-react';
+import { 
+  LayoutGrid, List, AlignJustify, Search, ChevronDown, ChevronUp, 
+  Image as ImageIcon, Filter, Edit2, X, Save, Loader2, Download, 
+  Maximize2, Calendar, CreditCard, Tag, FileText, MapPin, Lock, 
+  Clock, User as UserIcon, Shield, Activity, AlertCircle, FileDown
+} from 'lucide-react';
 import { clsx } from 'clsx';
 import { generatePDFReport, generateSingleReceiptPDF } from '../services/pdfService';
 import { supabase } from '../services/supabaseClient';
@@ -21,16 +24,14 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
   const [period, setPeriod] = useState<PeriodFilter>('current_month');
   const [selectedCats, setSelectedCats] = useState<string[]>([]);
   const [showFilters, setShowFilters] = useState(false);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   // States for Modals
   const [editingReceipt, setEditingReceipt] = useState<Receipt | null>(null);
   const [viewingReceipt, setViewingReceipt] = useState<Receipt | null>(null);
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
-  
   const [isSavingEdit, setIsSavingEdit] = useState(false);
 
-  // Force re-render periodically to update the "isEditable" status
+  // Time-based editing logic
   const [currentTime, setCurrentTime] = useState(Date.now());
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(Date.now()), 60000); 
@@ -42,48 +43,40 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
   const canEditReceipt = (receipt: Receipt): boolean => {
     if (isAdmin) return true;
     const createdTime = new Date(receipt.created_at).getTime();
-    const now = currentTime;
-    const diffMinutes = (now - createdTime) / (1000 * 60);
+    const diffMinutes = (currentTime - createdTime) / (1000 * 60);
     return diffMinutes <= 5;
   };
 
-  const getTimeRemaining = (receipt: Receipt): string | null => {
-      if (isAdmin) return null;
-      const createdTime = new Date(receipt.created_at).getTime();
-      const now = currentTime;
-      const diffMinutes = (now - createdTime) / (1000 * 60);
-      if (diffMinutes > 5) return null;
-      const remaining = 5 - diffMinutes;
-      if (remaining < 1) return "< 1 min";
-      return `${Math.ceil(remaining)} min`;
-  };
-
-  const getUserName = (userId?: string) => {
-    if (!userId) return 'Sistema';
+  const getUserName = (userId?: string | null) => {
+    if (!userId) return 'Sistema/Externo';
     const u = users.find(user => user.id === userId);
-    return u ? u.full_name : 'Usuário Desconhecido';
+    return u ? u.full_name : 'Usuário ' + userId.slice(0, 4);
   };
 
   const formatDateTime = (dateStr: string) => {
-    return new Date(dateStr).toLocaleString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+    try {
+      return new Date(dateStr).toLocaleString('pt-BR', {
+        day: '2-digit', month: '2-digit', year: '2-digit',
+        hour: '2-digit', minute: '2-digit'
+      });
+    } catch (e) { return 'Data inválida'; }
   };
 
-  // Filter Logic
+  // --- FILTER LOGIC ---
   const filteredReceipts = useMemo(() => {
     return receipts.filter(r => {
+      // 1. Search filter
+      const searchLower = searchQuery.toLowerCase();
       const matchesSearch = 
-        r.establishment.toLowerCase().includes(searchQuery.toLowerCase()) || 
-        r.items.some(i => i.name.toLowerCase().includes(searchQuery.toLowerCase()));
+        r.establishment.toLowerCase().includes(searchLower) || 
+        (r.items?.some(i => i.name.toLowerCase().includes(searchLower)) ?? false);
       
       if (!matchesSearch) return false;
+
+      // 2. Category filter
       if (selectedCats.length > 0 && !selectedCats.includes(r.category_id)) return false;
 
+      // 3. Period filter
       const rDate = new Date(r.date + 'T12:00:00'); 
       const now = new Date();
       
@@ -99,78 +92,43 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
       } else if (period === 'year') {
         return rDate.getFullYear() === now.getFullYear();
       }
-      return true;
+      return true; // "all"
     }).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   }, [receipts, searchQuery, selectedCats, period]);
 
   const toggleCategory = (id: string) => {
-    if (selectedCats.includes(id)) setSelectedCats(selectedCats.filter(c => c !== id));
-    else setSelectedCats([...selectedCats, id]);
+    setSelectedCats(prev => prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id]);
   };
 
   const downloadReport = () => {
-      const periodLabelMap: Record<string, string> = {
-          'current_month': 'Este Mês',
-          'last_month': 'Mês Passado',
-          'last_3_months': 'Últimos 3 Meses',
-          'year': 'Este Ano',
-          'custom': 'Geral'
-      };
-      generatePDFReport(filteredReceipts, categories, periodLabelMap[period] || 'Período', "", true);
+    if (!isAdmin) return;
+    const periodLabels: Record<string, string> = {
+      'current_month': 'Este Mês',
+      'last_month': 'Mês Passado',
+      'last_3_months': 'Últimos 3 Meses',
+      'year': 'Este Ano',
+      'custom': 'Geral'
+    };
+    
+    let label = periodLabels[period] || 'Relatório';
+    generatePDFReport(filteredReceipts, categories, label, formatDateTime(new Date().toISOString()), true);
   };
 
   const handleDownloadSingle = (e: React.MouseEvent, receipt: Receipt) => {
       e.stopPropagation();
-      const catName = categories.find(c => c.id === receipt.category_id)?.name || 'Desconhecido';
+      const catName = categories.find(c => c.id === receipt.category_id)?.name || 'Outros';
       generateSingleReceiptPDF(receipt, catName);
-  };
-
-  const handleEditClick = (e: React.MouseEvent, receipt: Receipt) => {
-      e.stopPropagation();
-      if (canEditReceipt(receipt)) {
-          setEditingReceipt(receipt);
-      } else {
-          alert("O tempo limite para edição (5 minutos) expirou. Contate o administrador.");
-      }
   };
 
   const handleCardClick = (receipt: Receipt) => {
       setViewingReceipt(receipt);
   };
 
-  const handleSaveEdit = async (e: React.FormEvent) => {
-      e.preventDefault();
-      if (!editingReceipt) return;
-      setIsSavingEdit(true);
-      try {
-          const { error } = await supabase
-              .from('receipts')
-              .update({
-                  establishment: editingReceipt.establishment,
-                  date: editingReceipt.date,
-                  total_amount: editingReceipt.total_amount,
-                  category_id: editingReceipt.category_id,
-                  location: editingReceipt.location
-              })
-              .eq('id', editingReceipt.id);
-          if (error) throw error;
-          setEditingReceipt(null);
-          if (viewingReceipt?.id === editingReceipt.id) {
-              setViewingReceipt(prev => prev ? { ...prev, ...editingReceipt } : null);
-          }
-          if (onRefresh) onRefresh();
-      } catch (error) {
-          console.error("Error updating receipt", error);
-          alert("Erro ao atualizar nota.");
-      } finally {
-          setIsSavingEdit(false);
-      }
-  };
-
   const getCat = (id: string) => categories.find(c => c.id === id);
 
   return (
     <div className="h-full flex flex-col bg-gray-50 relative">
+      {/* --- MODAL: IMAGE ZOOM --- */}
       {zoomedImage && (
           <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/90 p-4 animate-in fade-in" onClick={() => setZoomedImage(null)}>
               <div className="relative w-full max-w-4xl h-full flex items-center justify-center">
@@ -180,6 +138,7 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
           </div>
       )}
 
+      {/* --- MODAL: DETAIL VIEW --- */}
       {viewingReceipt && !editingReceipt && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 sm:p-4 animate-in fade-in">
             <div className="bg-white w-full max-w-lg sm:rounded-2xl rounded-t-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
@@ -195,7 +154,7 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
                             <div className="flex flex-col items-center text-gray-400"><ImageIcon size={32} /></div>
                         )}
                         <div className="absolute bottom-3 right-3">
-                             <span className="px-3 py-1 rounded-full text-xs font-bold text-white shadow-sm" style={{backgroundColor: getCat(viewingReceipt.category_id)?.color}}>{getCat(viewingReceipt.category_id)?.name}</span>
+                             <span className="px-3 py-1 rounded-full text-xs font-bold text-white shadow-sm" style={{backgroundColor: getCat(viewingReceipt.category_id)?.color || '#666'}}>{getCat(viewingReceipt.category_id)?.name || 'Outros'}</span>
                         </div>
                     </div>
                     <div className="p-6 space-y-6">
@@ -210,10 +169,10 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
                             </div>
                         </div>
 
-                        {/* SEÇÃO DE AUDITORIA NO DETALHE */}
+                        {/* AUDIT SECTION */}
                         <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-4">
                             <h4 className="text-[10px] font-bold text-blue-800 uppercase mb-3 flex items-center gap-1.5">
-                                <Shield size={12} /> Registro no Sistema
+                                <Shield size={12} /> Auditoria do Lançamento
                             </h4>
                             <div className="space-y-3">
                                 <div className="flex items-center gap-3">
@@ -221,7 +180,7 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
                                         <UserIcon size={16} />
                                     </div>
                                     <div>
-                                        <p className="text-[10px] text-blue-700/60 leading-none mb-1">Adicionado por:</p>
+                                        <p className="text-[10px] text-blue-700/60 leading-none mb-1">Lançado por:</p>
                                         <p className="text-sm font-bold text-blue-900">{getUserName(viewingReceipt.user_id)}</p>
                                     </div>
                                 </div>
@@ -230,7 +189,7 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
                                         <Clock size={16} />
                                     </div>
                                     <div>
-                                        <p className="text-[10px] text-blue-700/60 leading-none mb-1">Data/Hora do Lançamento:</p>
+                                        <p className="text-[10px] text-blue-700/60 leading-none mb-1">Data do Registro:</p>
                                         <p className="text-sm font-bold text-blue-900">{formatDateTime(viewingReceipt.created_at)}</p>
                                     </div>
                                 </div>
@@ -239,12 +198,12 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
 
                         {viewingReceipt.items && viewingReceipt.items.length > 0 && (
                             <div>
-                                <h4 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2"><FileText size={16} /> Itens da Nota</h4>
+                                <h4 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2"><FileText size={16} /> Itens Extraídos</h4>
                                 <div className="border border-gray-100 rounded-lg overflow-hidden">
                                     <table className="w-full text-sm text-left">
                                         <tbody className="divide-y divide-gray-100">
                                             {viewingReceipt.items.map((item, idx) => (
-                                                <tr key={idx}><td className="px-3 py-2 text-gray-700 font-medium">{item.name}</td><td className="px-3 py-2 text-right font-bold text-gray-900">{item.totalPrice?.toFixed(2)}</td></tr>
+                                                <tr key={idx}><td className="px-3 py-2 text-gray-700 font-medium">{item.name}</td><td className="px-3 py-2 text-right font-bold text-gray-900">{item.totalPrice?.toFixed(2) || '0.00'}</td></tr>
                                             ))}
                                         </tbody>
                                     </table>
@@ -256,7 +215,7 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
                 <div className="p-4 border-t border-gray-100 bg-gray-50 flex gap-3">
                      <button onClick={(e) => handleDownloadSingle(e, viewingReceipt)} className="flex-1 flex items-center justify-center gap-2 bg-white border border-gray-200 py-3 rounded-xl font-medium"><Download size={18} /> PDF</button>
                      {canEditReceipt(viewingReceipt) ? (
-                        <button onClick={(e) => { setViewingReceipt(null); handleEditClick(e, viewingReceipt); }} className="flex-1 flex items-center justify-center gap-2 bg-brand-600 text-white py-3 rounded-xl font-medium shadow-sm"><Edit2 size={18} /> Editar</button>
+                        <button onClick={(e) => { setViewingReceipt(null); setEditingReceipt(viewingReceipt); }} className="flex-1 flex items-center justify-center gap-2 bg-brand-600 text-white py-3 rounded-xl font-medium shadow-sm"><Edit2 size={18} /> Editar</button>
                     ) : (
                         <button disabled className="flex-1 flex items-center justify-center gap-2 bg-gray-100 text-gray-400 py-3 rounded-xl font-medium cursor-not-allowed"><Lock size={16} /> Bloqueado</button>
                     )}
@@ -265,43 +224,139 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
         </div>
       )}
 
-      <div className="bg-white p-4 shadow-sm z-10 sticky top-0">
+      {/* --- SEARCH & FILTERS --- */}
+      <div className="bg-white p-4 shadow-sm z-10 sticky top-0 border-b border-gray-100">
         <div className="relative mb-3">
           <Search className="absolute left-3 top-2.5 text-gray-400" size={18} />
-          <input type="text" placeholder="Buscar nota, item ou loja..." className="w-full bg-gray-100 rounded-lg pl-10 pr-4 py-2 text-sm focus:ring-2 ring-brand-500 outline-none" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
-          <button onClick={() => setShowFilters(!showFilters)} className={clsx("absolute right-2 top-1.5 p-1 rounded-md transition-colors", showFilters ? "bg-brand-100 text-brand-600" : "text-gray-400")}><Filter size={18} /></button>
+          <input 
+            type="text" 
+            placeholder="Buscar nota ou item..." 
+            className="w-full bg-gray-100 rounded-lg pl-10 pr-4 py-2 text-sm focus:ring-2 ring-brand-500 outline-none transition-all" 
+            value={searchQuery} 
+            onChange={(e) => setSearchQuery(e.target.value)} 
+          />
+          <button 
+            onClick={() => setShowFilters(!showFilters)} 
+            className={clsx("absolute right-2 top-1.5 p-1 rounded-md transition-colors", showFilters ? "bg-brand-100 text-brand-600" : "text-gray-400")}
+          >
+            <Filter size={18} />
+          </button>
         </div>
-        <div className="flex justify-between items-center">
-            <span className="text-xs font-medium text-gray-500">{filteredReceipts.length} notas no período</span>
+
+        {showFilters && (
+            <div className="mb-3 animate-in slide-in-from-top-2 duration-200">
+                <div className="space-y-4">
+                  {/* Filtro de Período */}
+                  <div>
+                    <p className="text-[10px] font-bold text-gray-400 uppercase mb-2 tracking-wider">Período</p>
+                    <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                        {[
+                            {id: 'current_month', label: 'Este Mês'},
+                            {id: 'last_month', label: 'Mês Passado'},
+                            {id: 'last_3_months', label: '3 Meses'},
+                            {id: 'custom', label: 'Geral'}
+                        ].map(p => (
+                            <button 
+                                key={p.id}
+                                onClick={() => setPeriod(p.id as any)}
+                                className={clsx("px-4 py-1.5 rounded-full text-[10px] font-bold whitespace-nowrap border transition-all shadow-sm", period === p.id ? "bg-brand-600 border-brand-600 text-white" : "bg-white border-gray-200 text-gray-500")}
+                            >
+                                {p.label}
+                            </button>
+                        ))}
+                    </div>
+                  </div>
+
+                  {/* Filtro de Categorias */}
+                  <div>
+                    <p className="text-[10px] font-bold text-gray-400 uppercase mb-2 tracking-wider">Categorias</p>
+                    <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                        <button 
+                            onClick={() => setSelectedCats([])}
+                            className={clsx(
+                              "px-4 py-1.5 rounded-full text-[10px] font-bold whitespace-nowrap border transition-all shadow-sm",
+                              selectedCats.length === 0 ? "bg-gray-800 border-gray-800 text-white" : "bg-white border-gray-200 text-gray-500"
+                            )}
+                        >
+                            Todas
+                        </button>
+                        {categories.map(cat => (
+                            <button 
+                                key={cat.id}
+                                onClick={() => toggleCategory(cat.id)}
+                                className={clsx(
+                                  "px-4 py-1.5 rounded-full text-[10px] font-bold whitespace-nowrap border transition-all shadow-sm flex items-center gap-1.5",
+                                  selectedCats.includes(cat.id) ? "border-brand-600 bg-brand-50 text-brand-700" : "bg-white border-gray-200 text-gray-500"
+                                )}
+                            >
+                                <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: cat.color }}></span>
+                                {cat.name}
+                            </button>
+                        ))}
+                    </div>
+                  </div>
+                </div>
+            </div>
+        )}
+
+        <div className="flex justify-between items-center mt-2">
+            <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-brand-700 bg-brand-50 px-2 py-0.5 rounded-full border border-brand-100">
+                  {filteredReceipts.length} notas
+                </span>
+                
+                {/* Botão de Relatório Restabelecido - RESTRICTED TO ADMINS ONLY */}
+                {isAdmin && (
+                  <button 
+                    onClick={downloadReport}
+                    className="flex items-center gap-1 text-[10px] font-bold text-gray-500 hover:text-brand-600 transition-colors bg-white border border-gray-200 px-2 py-0.5 rounded-full"
+                  >
+                    <FileDown size={12} />
+                    Baixar Relatório
+                  </button>
+                )}
+            </div>
+            
             <div className="flex bg-gray-100 rounded-lg p-1">
-                <button onClick={() => setViewMode('list')} className={clsx("p-1.5 rounded-md", viewMode === 'list' && "bg-white shadow-sm text-brand-600")}><List size={16} /></button>
-                <button onClick={() => setViewMode('grid')} className={clsx("p-1.5 rounded-md", viewMode === 'grid' && "bg-white shadow-sm text-brand-600")}><LayoutGrid size={16} /></button>
-                <button onClick={() => setViewMode('compact')} className={clsx("p-1.5 rounded-md", viewMode === 'compact' && "bg-white shadow-sm text-brand-600")}><AlignJustify size={16} /></button>
+                <button onClick={() => setViewMode('list')} className={clsx("p-1.5 rounded-md transition-all", viewMode === 'list' && "bg-white shadow-sm text-brand-600")}><List size={16} /></button>
+                <button onClick={() => setViewMode('grid')} className={clsx("p-1.5 rounded-md transition-all", viewMode === 'grid' && "bg-white shadow-sm text-brand-600")}><LayoutGrid size={16} /></button>
+                <button onClick={() => setViewMode('compact')} className={clsx("p-1.5 rounded-md transition-all", viewMode === 'compact' && "bg-white shadow-sm text-brand-600")}><AlignJustify size={16} /></button>
             </div>
         </div>
       </div>
 
-      <div className="p-4 space-y-3">
+      {/* --- LIST CONTENT --- */}
+      <div className="p-4 space-y-3 pb-24 flex-1">
         {filteredReceipts.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-48 text-gray-400"><Search size={32} className="mb-2 opacity-50"/><p>Nenhuma nota encontrada.</p></div>
+            <div className="flex flex-col items-center justify-center h-full text-gray-400 py-10">
+                <Search size={48} className="mb-3 opacity-20"/>
+                <p className="text-sm font-medium">Nenhuma nota encontrada com os filtros atuais.</p>
+                {(searchQuery || selectedCats.length > 0 || period !== 'current_month') && (
+                  <button 
+                    onClick={() => { setSearchQuery(''); setSelectedCats([]); setPeriod('current_month'); }}
+                    className="mt-4 text-brand-600 text-xs font-bold hover:underline"
+                  >
+                    Limpar todos os filtros
+                  </button>
+                )}
+            </div>
         ) : (
             <div className={clsx(viewMode === 'grid' ? "grid grid-cols-2 gap-3" : "space-y-3")}>
                 {filteredReceipts.map(receipt => {
-                    const category = categories.find(c => c.id === receipt.category_id);
-                    const editable = canEditReceipt(receipt);
+                    const category = getCat(receipt.category_id);
                     const uploaderName = getUserName(receipt.user_id);
                     
                     if (viewMode === 'grid') {
                         return (
-                            <div key={receipt.id} onClick={() => handleCardClick(receipt)} className="bg-white rounded-xl shadow-sm overflow-hidden border border-gray-100 flex flex-col relative group cursor-pointer">
+                            <div key={receipt.id} onClick={() => handleCardClick(receipt)} className="bg-white rounded-xl shadow-sm overflow-hidden border border-gray-100 flex flex-col relative group cursor-pointer active:scale-95 transition-all">
                                 <div className="h-24 bg-gray-100 relative">
-                                    {receipt.image_url ? <img src={receipt.image_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-gray-300"><ImageIcon /></div>}
-                                    <div className="absolute top-2 right-2 px-1.5 py-0.5 rounded text-[8px] font-bold text-white shadow-sm z-10" style={{backgroundColor: category?.color}}>{category?.name.slice(0, 8)}</div>
+                                    {receipt.image_url ? <img src={receipt.image_url} className="w-full h-full object-cover" alt="" /> : <div className="w-full h-full flex items-center justify-center text-gray-300"><ImageIcon /></div>}
+                                    <div className="absolute top-2 right-2 px-1.5 py-0.5 rounded text-[8px] font-bold text-white shadow-sm z-10" style={{backgroundColor: category?.color || '#666'}}>{category?.name || 'Outros'}</div>
                                 </div>
                                 <div className="p-2.5">
-                                    <p className="font-bold text-gray-900 text-xs truncate mb-1">{receipt.establishment}</p>
-                                    <p className="text-[10px] text-brand-600 font-bold mb-2">R$ {Number(receipt.total_amount).toFixed(2)}</p>
-                                    <div className="border-t border-gray-50 pt-2 flex flex-col gap-1">
+                                    <p className="font-bold text-gray-900 text-[10px] truncate mb-0.5">{receipt.establishment}</p>
+                                    <p className="text-xs text-brand-600 font-bold mb-1.5">R$ {Number(receipt.total_amount).toFixed(2)}</p>
+                                    <div className="border-t border-gray-50 pt-1.5 space-y-0.5">
                                         <div className="flex items-center gap-1 text-[8px] text-gray-400 font-medium">
                                             <UserIcon size={8} /> {uploaderName.split(' ')[0]}
                                         </div>
@@ -316,23 +371,23 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
 
                     if (viewMode === 'compact') {
                         return (
-                            <div key={receipt.id} className="bg-white rounded-lg shadow-sm border border-gray-100 p-3 flex items-center justify-between cursor-pointer" onClick={() => handleCardClick(receipt)}>
+                            <div key={receipt.id} className="bg-white rounded-lg shadow-sm border border-gray-100 p-3 flex items-center justify-between cursor-pointer active:bg-gray-50 transition-colors" onClick={() => handleCardClick(receipt)}>
                                 <div className="flex items-center gap-3 overflow-hidden">
-                                    <div className="w-1 h-8 rounded-full" style={{backgroundColor: category?.color}}></div>
+                                    <div className="w-1 h-8 rounded-full flex-shrink-0" style={{backgroundColor: category?.color || '#666'}}></div>
                                     <div className="truncate">
                                         <p className="font-bold text-xs text-gray-900 truncate">{receipt.establishment}</p>
-                                        <p className="text-[9px] text-gray-400 truncate flex items-center gap-1"><UserIcon size={8}/> {uploaderName} • {formatDateTime(receipt.created_at)}</p>
+                                        <p className="text-[9px] text-gray-400 truncate flex items-center gap-1"><UserIcon size={8}/> {uploaderName} • {new Date(receipt.date).toLocaleDateString('pt-BR')}</p>
                                     </div>
                                 </div>
-                                <p className="font-bold text-xs text-gray-900 ml-2">R$ {Number(receipt.total_amount).toFixed(2)}</p>
+                                <p className="font-bold text-xs text-brand-600 ml-2 whitespace-nowrap">R$ {Number(receipt.total_amount).toFixed(2)}</p>
                             </div>
                         );
                     }
 
                     return (
-                        <div key={receipt.id} onClick={() => handleCardClick(receipt)} className="bg-white rounded-xl shadow-sm p-3 flex gap-4 border border-gray-100 cursor-pointer">
-                            <div className="w-16 h-16 rounded-lg bg-gray-100 flex-shrink-0 overflow-hidden relative">
-                                {receipt.image_url ? <img src={receipt.image_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-gray-300"><ImageIcon size={20} /></div>}
+                        <div key={receipt.id} onClick={() => handleCardClick(receipt)} className="bg-white rounded-xl shadow-sm p-3 flex gap-4 border border-gray-100 cursor-pointer active:bg-gray-50 transition-colors">
+                            <div className="w-16 h-16 rounded-lg bg-gray-100 flex-shrink-0 overflow-hidden relative border border-gray-100">
+                                {receipt.image_url ? <img src={receipt.image_url} className="w-full h-full object-cover" alt="" /> : <div className="w-full h-full flex items-center justify-center text-gray-300"><ImageIcon size={20} /></div>}
                             </div>
                             <div className="flex-1 min-w-0 flex flex-col justify-between">
                                 <div className="flex justify-between items-start">
@@ -342,7 +397,7 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
                                 <div className="flex justify-between items-end mt-1">
                                     <div className="space-y-1">
                                         <div className="flex gap-2">
-                                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold" style={{ backgroundColor: `${category?.color}20`, color: category?.color }}>{category?.name}</span>
+                                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold" style={{ backgroundColor: `${category?.color || '#666'}20`, color: category?.color || '#666' }}>{category?.name || 'Outros'}</span>
                                             <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-gray-100 text-gray-500 border border-gray-200">{receipt.location || 'Caratinga'}</span>
                                         </div>
                                         <div className="flex items-center gap-2 text-[9px] text-gray-400 font-medium">
