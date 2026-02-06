@@ -24,7 +24,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentTab, onTabChang
            <div className="bg-brand-600 text-white p-1.5 rounded-lg">
              <FileText size={18} />
            </div>
-           <span className="font-bold text-lg tracking-tight">SmartReceipts</span>
+           <span className="font-bold text-lg tracking-tight">NotasCD</span>
         </div>
         
         <div className="relative">

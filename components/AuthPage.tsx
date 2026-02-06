@@ -89,7 +89,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onLogin }) => {
                 <div className="inline-flex items-center justify-center w-16 h-16 bg-white/20 backdrop-blur-lg rounded-2xl mb-4 text-white shadow-lg">
                     <FileText size={32} />
                 </div>
-                <h1 className="text-2xl font-bold text-white mb-1">SmartReceipts</h1>
+                <h1 className="text-2xl font-bold text-white mb-1">NotasCD</h1>
                 <p className="text-brand-100 text-sm">Gestão inteligente de notas fiscais</p>
             </div>
 
@@ -183,7 +183,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onLogin }) => {
             </div>
             
             <div className="bg-gray-50 p-4 text-center border-t border-gray-100">
-                <p className="text-xs text-gray-400">Ambiente Seguro • SmartReceipts v1.3</p>
+                <p className="text-xs text-gray-400">Ambiente Seguro • NotasCD v1.3</p>
             </div>
         </div>
     </div>
