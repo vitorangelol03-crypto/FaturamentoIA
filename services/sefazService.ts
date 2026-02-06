@@ -50,6 +50,7 @@ export async function getSefazNotes(): Promise<SefazNote[]> {
   const { data, error } = await supabase
     .from('sefaz_notes')
     .select('*')
+    .eq('location', 'Caratinga')
     .order('data_emissao', { ascending: false });
 
   if (error) throw error;
@@ -57,9 +58,10 @@ export async function getSefazNotes(): Promise<SefazNote[]> {
 }
 
 export async function saveSefazNote(note: Partial<SefazNote>): Promise<void> {
+  const noteWithLocation = { ...note, location: 'Caratinga' };
   const { error } = await supabase
     .from('sefaz_notes')
-    .upsert(note, { onConflict: 'chave_acesso' });
+    .upsert(noteWithLocation, { onConflict: 'chave_acesso' });
 
   if (error) throw error;
 }
@@ -68,6 +70,7 @@ export async function getLastNSU(): Promise<string> {
   const { data, error } = await supabase
     .from('sefaz_sync_control')
     .select('ultimo_nsu')
+    .eq('location', 'Caratinga')
     .order('updated_at', { ascending: false })
     .limit(1)
     .single();
@@ -80,6 +83,7 @@ export async function updateLastNSU(nsu: string): Promise<void> {
   const { data } = await supabase
     .from('sefaz_sync_control')
     .select('id')
+    .eq('location', 'Caratinga')
     .limit(1)
     .single();
 
@@ -91,6 +95,6 @@ export async function updateLastNSU(nsu: string): Promise<void> {
   } else {
     await supabase
       .from('sefaz_sync_control')
-      .insert({ ultimo_nsu: nsu, updated_at: new Date().toISOString() });
+      .insert({ ultimo_nsu: nsu, location: 'Caratinga', updated_at: new Date().toISOString() });
   }
 }

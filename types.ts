@@ -65,6 +65,7 @@ export interface SefazNote {
   xml_completo?: string;
   status?: string;
   nsu?: string;
+  location?: string;
   created_at?: string;
   updated_at?: string;
 }
