@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { RefreshCw, Download, Search, FileText, Eye, AlertCircle, CheckCircle, X, Clock, Filter, XCircle } from 'lucide-react';
 import { User, SefazNote, SefazDocZip } from '../types';
 import { syncSefazNotes, getSefazNotes, saveSefazNote, getLastNSU, updateLastNSU } from '../services/sefazService';
+import { generateDanfePDF } from '../services/pdfService';
 import { clsx } from 'clsx';
 
 interface SefazMonitorProps {
@@ -372,8 +373,8 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser }) => {
                   <Eye size={12} /> Detalhes
                 </button>
                 <button
-                  className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-gray-500 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
-                  disabled
+                  onClick={() => generateDanfePDF(note)}
+                  className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-green-600 bg-green-50 rounded-lg hover:bg-green-100 transition-colors"
                 >
                   <Download size={12} /> Baixar PDF
                 </button>

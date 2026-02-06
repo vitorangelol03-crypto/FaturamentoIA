@@ -1,4 +1,4 @@
-import { Receipt, Category } from '../types';
+import { Receipt, Category, SefazNote } from '../types';
 
 // Declare jsPDF types globally since we are loading from CDN
 declare global {
@@ -232,4 +232,179 @@ export const generatePDFReport = (
   }
 
   doc.save('relatorio_notas.pdf');
+};
+
+const formatCNPJ = (cnpj?: string) => {
+  if (!cnpj) return '-';
+  const c = cnpj.replace(/\D/g, '');
+  if (c.length === 14) {
+    return c.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
+  }
+  if (c.length === 11) {
+    return c.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+  }
+  return cnpj;
+};
+
+const formatChaveAcesso = (chave?: string) => {
+  if (!chave) return '-';
+  return chave.replace(/(.{4})/g, '$1 ').trim();
+};
+
+const formatDateBR = (dateStr?: string) => {
+  if (!dateStr) return '-';
+  try {
+    return new Date(dateStr).toLocaleDateString('pt-BR');
+  } catch {
+    return dateStr.slice(0, 10);
+  }
+};
+
+const formatCurrencyBR = (value?: number) => {
+  if (value === undefined || value === null) return 'R$ 0,00';
+  return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+};
+
+export const generateDanfePDF = (note: SefazNote) => {
+  if (!window.jspdf) {
+    alert("Biblioteca PDF não carregada. Verifique sua conexão.");
+    return;
+  }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  const pageWidth = doc.internal.pageSize.getWidth();
+
+  doc.setFillColor(2, 132, 199);
+  doc.rect(0, 0, pageWidth, 12, 'F');
+  doc.setFontSize(9);
+  doc.setTextColor(255, 255, 255);
+  doc.text('DANFE - DOCUMENTO AUXILIAR DA NOTA FISCAL ELETRÔNICA', pageWidth / 2, 8, { align: 'center' });
+
+  doc.setDrawColor(2, 132, 199);
+  doc.setLineWidth(0.5);
+  doc.rect(10, 16, pageWidth - 20, 30);
+
+  doc.setFontSize(7);
+  doc.setTextColor(100);
+  doc.text('CHAVE DE ACESSO', 14, 21);
+  doc.setFontSize(9);
+  doc.setTextColor(0);
+  doc.text(formatChaveAcesso(note.chave_acesso), 14, 27);
+
+  doc.setFontSize(7);
+  doc.setTextColor(100);
+  doc.text('Nº', 14, 34);
+  doc.setFontSize(10);
+  doc.setTextColor(0);
+  doc.text(note.numero_nota || '-', 22, 34);
+
+  doc.setFontSize(7);
+  doc.setTextColor(100);
+  doc.text('SÉRIE', 60, 34);
+  doc.setFontSize(10);
+  doc.setTextColor(0);
+  doc.text(note.serie || '-', 75, 34);
+
+  doc.setFontSize(7);
+  doc.setTextColor(100);
+  doc.text('DATA EMISSÃO', 100, 34);
+  doc.setFontSize(10);
+  doc.setTextColor(0);
+  doc.text(formatDateBR(note.data_emissao), 128, 34);
+
+  doc.setFontSize(7);
+  doc.setTextColor(100);
+  doc.text('NSU', 14, 42);
+  doc.setFontSize(9);
+  doc.setTextColor(0);
+  doc.text(note.nsu || '-', 26, 42);
+
+  const statusText = (note.status || 'desconhecido').toUpperCase();
+  const statusColor: [number, number, number] = note.status === 'ativa' ? [22, 163, 74] : note.status === 'cancelada' ? [220, 38, 38] : [156, 163, 175];
+  doc.setFontSize(9);
+  doc.setTextColor(...statusColor);
+  doc.setFont(undefined as any, 'bold');
+  doc.text(statusText, pageWidth - 14, 42, { align: 'right' });
+  doc.setFont(undefined as any, 'normal');
+
+  doc.setFillColor(240, 249, 255);
+  doc.rect(10, 50, pageWidth - 20, 22, 'F');
+  doc.setDrawColor(2, 132, 199);
+  doc.rect(10, 50, pageWidth - 20, 22);
+
+  doc.setFontSize(7);
+  doc.setTextColor(2, 132, 199);
+  doc.setFont(undefined as any, 'bold');
+  doc.text('EMITENTE', 14, 55);
+  doc.setFont(undefined as any, 'normal');
+  doc.setTextColor(0);
+  doc.setFontSize(11);
+  doc.text(note.emitente_nome || 'Não identificado', 14, 62);
+  doc.setFontSize(9);
+  doc.setTextColor(80);
+  doc.text(`CNPJ: ${formatCNPJ(note.emitente_cnpj)}`, 14, 68);
+
+  doc.setDrawColor(2, 132, 199);
+  doc.rect(10, 76, pageWidth - 20, 14);
+  doc.setFontSize(7);
+  doc.setTextColor(2, 132, 199);
+  doc.setFont(undefined as any, 'bold');
+  doc.text('DESTINATÁRIO', 14, 81);
+  doc.setFont(undefined as any, 'normal');
+  doc.setTextColor(0);
+  doc.setFontSize(9);
+  doc.text(`CNPJ: ${formatCNPJ(note.destinatario_cnpj)}`, 14, 87);
+
+  doc.setFillColor(2, 132, 199);
+  doc.rect(10, 94, pageWidth - 20, 12, 'F');
+  doc.setFontSize(7);
+  doc.setTextColor(255, 255, 255);
+  doc.setFont(undefined as any, 'bold');
+  doc.text('VALOR TOTAL DA NOTA FISCAL', 14, 100);
+  doc.setFontSize(14);
+  doc.text(formatCurrencyBR(note.valor_total), pageWidth - 14, 103, { align: 'right' });
+  doc.setFont(undefined as any, 'normal');
+
+  let yPos = 114;
+
+  if (note.xml_completo) {
+    doc.setDrawColor(200);
+    doc.setLineWidth(0.3);
+    doc.line(10, yPos, pageWidth - 10, yPos);
+    yPos += 6;
+
+    doc.setFontSize(8);
+    doc.setTextColor(2, 132, 199);
+    doc.setFont(undefined as any, 'bold');
+    doc.text('INFORMAÇÕES COMPLEMENTARES', 14, yPos);
+    doc.setFont(undefined as any, 'normal');
+    yPos += 5;
+
+    doc.setFontSize(6);
+    doc.setTextColor(100);
+    const xmlPreview = note.xml_completo.slice(0, 2000);
+    const xmlLines = doc.splitTextToSize(xmlPreview, pageWidth - 28);
+    const maxLines = Math.min(xmlLines.length, 40);
+    for (let i = 0; i < maxLines; i++) {
+      if (yPos > 280) {
+        doc.addPage();
+        yPos = 15;
+      }
+      doc.text(xmlLines[i], 14, yPos);
+      yPos += 3;
+    }
+    if (xmlLines.length > maxLines) {
+      doc.text('[... XML truncado ...]', 14, yPos);
+      yPos += 5;
+    }
+  }
+
+  const footerY = doc.internal.pageSize.getHeight() - 8;
+  doc.setFontSize(6);
+  doc.setTextColor(150);
+  doc.text('Documento gerado pelo NotasCD - Gestão Inteligente de Notas Fiscais', pageWidth / 2, footerY, { align: 'center' });
+
+  const fileName = `DANFE_${note.numero_nota || note.nsu || 'nota'}_${(note.emitente_nome || 'emitente').replace(/[^a-z0-9]/gi, '_').substring(0, 20)}.pdf`;
+  doc.save(fileName);
 };
