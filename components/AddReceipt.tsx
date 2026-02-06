@@ -250,6 +250,7 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, cur
       const base64 = await fileToBase64(nextItem.file);
       const rawData = await extractReceiptData(base64, nextItem.file.type);
       
+      // Limpa CNPJ para garantir que apenas números sejam salvos
       const extractedCNPJ = rawData.cnpj ? rawData.cnpj.replace(/\D/g, '') : '';
       const cleanRequiredCNPJ = REQUIRED_CNPJ.replace(/\D/g, '');
 
@@ -284,7 +285,7 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, cur
         establishment: rawData.establishment || 'Desconhecido',
         date: rawData.date || new Date().toISOString(),
         total_amount: rawData.total_amount || 0,
-        cnpj: rawData.cnpj,
+        cnpj: extractedCNPJ, // Store numbers only for consistency
         receipt_number: rawData.receipt_number,
         payment_method: rawData.payment_method,
         category_id: matchedCategory.id,
