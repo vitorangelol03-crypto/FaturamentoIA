@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home, PlusCircle, FileText, Settings as SettingsIcon, MapPin, Shield } from 'lucide-react';
+import { Home, PlusCircle, FileText, Settings as SettingsIcon, MapPin, Shield, Radio } from 'lucide-react';
 import { clsx } from 'clsx';
 import { User } from '../types';
 
@@ -90,7 +90,6 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentTab, onTabChang
           <span className="text-[10px] font-medium mt-1 text-gray-500">Adicionar</span>
         </button>
 
-        {/* Botão Admin condicional */}
         {isAdmin && (
              <button 
                 onClick={() => onTabChange('admin')}
@@ -98,6 +97,16 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentTab, onTabChang
             >
                 <Shield size={24} strokeWidth={currentTab === 'admin' ? 2.5 : 2} />
                 <span className="text-[10px] font-medium">Admin</span>
+            </button>
+        )}
+
+        {isAdmin && (
+             <button 
+                onClick={() => onTabChange('sefaz')}
+                className={clsx("flex flex-col items-center gap-1 p-2 transition-colors flex-1", currentTab === 'sefaz' ? "text-brand-600" : "text-gray-400")}
+            >
+                <Radio size={24} strokeWidth={currentTab === 'sefaz' ? 2.5 : 2} />
+                <span className="text-[10px] font-medium">SEFAZ</span>
             </button>
         )}
 

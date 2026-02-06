@@ -7,6 +7,97 @@ export default defineConfig({
     {
       name: 'api-middleware',
       configureServer(server) {
+        server.middlewares.use('/api/sefaz-monitor', async (req, res) => {
+          if (req.method === 'OPTIONS') {
+            res.writeHead(200, {
+              'Access-Control-Allow-Origin': '*',
+              'Access-Control-Allow-Methods': 'POST,OPTIONS',
+              'Access-Control-Allow-Headers': 'Content-Type',
+            });
+            res.end();
+            return;
+          }
+
+          if (req.method !== 'POST') {
+            res.writeHead(405, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Method not allowed' }));
+            return;
+          }
+
+          let body = '';
+          req.on('data', (chunk: Buffer) => { body += chunk.toString(); });
+          req.on('end', async () => {
+            try {
+              const { action, ultNSU, chave, nsu } = JSON.parse(body);
+
+              const pfxBase64 = process.env.PFX_CERTIFICATE;
+              const pfxPassword = process.env.PFX_PASSWORD;
+
+              if (!pfxBase64 || !pfxPassword) {
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Certificado PFX não configurado.' }));
+                return;
+              }
+
+              const { DistribuicaoDFe } = await import('node-mde');
+              const pfxBuffer = Buffer.from(pfxBase64, 'base64');
+
+              const distribuicao = new DistribuicaoDFe({
+                pfx: pfxBuffer,
+                passphrase: pfxPassword,
+                cnpj: '11802464000138',
+                cUFAutor: '31',
+                tpAmb: '1',
+              });
+
+              let result;
+
+              if (action === 'sync') {
+                result = await distribuicao.consultaUltNSU(ultNSU || '000000000000000');
+              } else if (action === 'consultaChave') {
+                if (!chave) {
+                  res.writeHead(400, { 'Content-Type': 'application/json' });
+                  res.end(JSON.stringify({ error: 'Chave de acesso não informada.' }));
+                  return;
+                }
+                result = await distribuicao.consultaChNFe(chave);
+              } else if (action === 'consultaNSU') {
+                if (!nsu) {
+                  res.writeHead(400, { 'Content-Type': 'application/json' });
+                  res.end(JSON.stringify({ error: 'NSU não informado.' }));
+                  return;
+                }
+                result = await distribuicao.consultaNSU(nsu);
+              } else {
+                res.writeHead(400, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Ação inválida.' }));
+                return;
+              }
+
+              if (result.error) {
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: result.error }));
+                return;
+              }
+
+              const data = result.data || result;
+
+              res.writeHead(200, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({
+                cStat: data.cStat,
+                xMotivo: data.xMotivo,
+                ultNSU: data.ultNSU,
+                maxNSU: data.maxNSU,
+                documents: data.docZip || [],
+              }));
+            } catch (error: any) {
+              console.error('SEFAZ API error:', error);
+              res.writeHead(500, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ error: 'Erro ao comunicar com SEFAZ', details: error.message }));
+            }
+          });
+        });
+
         server.middlewares.use('/api/extract-invoice', async (req, res) => {
           if (req.method === 'OPTIONS') {
             res.writeHead(200, {

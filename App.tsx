@@ -6,6 +6,7 @@ import { AddReceipt } from './components/AddReceipt';
 import { Settings } from './components/Settings';
 import { AuthPage } from './components/AuthPage';
 import { AdminPanel } from './components/AdminPanel';
+import { SefazMonitor } from './components/SefazMonitor';
 import { supabase } from './services/supabaseClient';
 import { authService } from './services/authService';
 import { Receipt, Category, User } from './types';
@@ -146,6 +147,9 @@ export default function App() {
         {currentTab === 'add' && <AddReceipt categories={categories} onSaved={handleReceiptSaved} currentUser={user} />}
         {currentTab === 'admin' && (user.role === 'admin' || user.username === 'zoork22') && (
             <AdminPanel />
+        )}
+        {currentTab === 'sefaz' && (user.role === 'admin' || user.username === 'zoork22') && (
+            <SefazMonitor currentUser={user} />
         )}
         {currentTab === 'settings' && (
             <Settings 

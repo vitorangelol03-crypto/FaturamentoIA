@@ -51,3 +51,35 @@ export interface FilterState {
   categories: string[];
   searchQuery: string;
 }
+
+export interface SefazNote {
+  id?: string;
+  chave_acesso: string;
+  numero_nota?: string;
+  serie?: string;
+  data_emissao?: string;
+  emitente_nome?: string;
+  emitente_cnpj?: string;
+  destinatario_cnpj?: string;
+  valor_total?: number;
+  xml_completo?: string;
+  status?: string;
+  nsu?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface SefazSyncResult {
+  cStat: string;
+  xMotivo: string;
+  ultNSU: string;
+  maxNSU: string;
+  documents: SefazDocZip[];
+}
+
+export interface SefazDocZip {
+  xml: string;
+  json: any;
+  nsu: string;
+  schema: string;
+}

@@ -7,6 +7,12 @@ export const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiO
 // CNPJ Obrigatório para validação das notas (Apenas números)
 export const REQUIRED_CNPJ = "11802464000138";
 
+export const SEFAZ_CONFIG = {
+  CNPJ: '11802464000138',
+  UF_CODE: '31',
+  AMBIENTE: '1',
+};
+
 export const DEFAULT_CATEGORIES = [
   { id: '1', name: 'Alimentação', color: '#EF4444' },
   { id: '2', name: 'Transporte', color: '#3B82F6' },
