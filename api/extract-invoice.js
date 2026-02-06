@@ -1,9 +1,8 @@
 
-// Use ESM import as required by guidelines
 import { GoogleGenAI, Type } from "@google/genai";
 
 export default async function handler(req, res) {
-  // Configuração de CORS para permitir chamadas do frontend
+  // CORS configuration
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
@@ -12,7 +11,6 @@ export default async function handler(req, res) {
     'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
   );
 
-  // Resposta para preflight request (OPTIONS)
   if (req.method === 'OPTIONS') {
     res.status(200).end();
     return;
@@ -23,19 +21,20 @@ export default async function handler(req, res) {
   }
 
   const { image, mimeType } = req.body;
-  // Guidelines require using process.env.API_KEY directly
   const apiKey = process.env.API_KEY;
 
   if (!apiKey) {
-    console.error("Server Error: API_KEY is not defined.");
-    return res.status(500).json({ error: 'Servidor mal configurado: API Key ausente.' });
+    console.error("Critical: API_KEY environment variable is missing.");
+    return res.status(500).json({ error: 'Erro de configuração: Chave de API não encontrada no servidor.' });
+  }
+
+  if (!image) {
+    return res.status(400).json({ error: 'Dados da imagem não fornecidos.' });
   }
 
   try {
-    // Initialize GoogleGenAI with named parameter apiKey
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-    // Definição do Schema JSON using Type enum for better reliability
     const responseSchema = {
       type: Type.OBJECT,
       properties: {
@@ -61,27 +60,24 @@ export default async function handler(req, res) {
             }
           }
         }
-      }
+      },
+      required: ["establishment", "date", "total_amount"]
     };
 
-    // Use ai.models.generateContent with 'gemini-3-flash-preview' for extraction tasks
+    // Use gemini-3-flash-preview as recommended for text-extraction tasks
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: [
-        {
-          parts: [
-            {
-              text: "Analise esta nota fiscal brasileira (NFC-e, SAT, DANFE). Extraia os dados conforme o schema JSON fornecido."
-            },
-            {
-              inlineData: {
-                mimeType: mimeType || 'image/jpeg',
-                data: image
-              }
+      contents: {
+        parts: [
+          { text: "Você é um especialista em extração de dados de documentos fiscais brasileiros. Extraia com precisão os dados desta imagem e retorne APENAS o JSON, sem explicações ou blocos de código markdown." },
+          {
+            inlineData: {
+              mimeType: mimeType || 'image/jpeg',
+              data: image
             }
-          ]
-        }
-      ],
+          }
+        ]
+      },
       config: {
         responseMimeType: "application/json",
         responseSchema: responseSchema,
@@ -89,21 +85,28 @@ export default async function handler(req, res) {
       }
     });
 
-    // Extract text from response using the .text property as per guidelines
     const resultText = response.text;
-
     if (!resultText) {
-      throw new Error("A IA não retornou nenhum texto.");
+      throw new Error("A IA retornou uma resposta vazia.");
     }
 
-    const jsonResult = JSON.parse(resultText);
-    res.status(200).json(jsonResult);
+    // Defensive parsing: remove potential markdown blocks if the model ignores the mimeType instruction
+    let cleanJson = resultText.trim();
+    if (cleanJson.startsWith('```json')) {
+      cleanJson = cleanJson.replace(/^```json/, '').replace(/```$/, '').trim();
+    } else if (cleanJson.startsWith('```')) {
+      cleanJson = cleanJson.replace(/^```/, '').replace(/```$/, '').trim();
+    }
+
+    const jsonResult = JSON.parse(cleanJson);
+    return res.status(200).json(jsonResult);
 
   } catch (error) {
-    console.error("Backend Extraction Error:", error);
-    res.status(500).json({ 
-      error: error.message || 'Erro interno ao processar nota fiscal.',
-      details: "Verifique os logs da Vercel para mais informações." 
+    console.error("Detailed Backend Error:", error);
+    return res.status(500).json({ 
+      error: 'Falha ao processar imagem', 
+      details: error.message,
+      type: error.constructor.name 
     });
   }
 }
