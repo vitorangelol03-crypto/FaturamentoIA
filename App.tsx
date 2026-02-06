@@ -7,6 +7,7 @@ import { Settings } from './components/Settings';
 import { AuthPage } from './components/AuthPage';
 import { AdminPanel } from './components/AdminPanel';
 import { supabase } from './services/supabaseClient';
+import { authService } from './services/authService';
 import { Receipt, Category, User } from './types';
 import { DEFAULT_CATEGORIES } from './constants';
 import { LogOut } from 'lucide-react';
@@ -16,9 +17,9 @@ export default function App() {
   const [currentTab, setCurrentTab] = useState('dashboard');
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [categories, setCategories] = useState<Category[]>(DEFAULT_CATEGORIES);
+  const [users, setUsers] = useState<User[]>([]);
   const [loadingData, setLoadingData] = useState(false);
   
-  // Persistência simples de sessão
   useEffect(() => {
     const savedUser = localStorage.getItem('smartreceipts_user');
     if (savedUser) {
@@ -35,10 +36,10 @@ export default function App() {
       setUser(null);
       localStorage.removeItem('smartreceipts_user');
       setReceipts([]);
+      setUsers([]);
       setCurrentTab('dashboard');
   };
   
-  // Filtro Global de Empresa
   const [selectedLocation, setSelectedLocation] = useState<string>(() => {
       return localStorage.getItem('smartreceipts_location') || 'all';
   });
@@ -55,7 +56,11 @@ export default function App() {
       setLoadingData(true);
       const isAdmin = user.role === 'admin' || user.username === 'zoork22';
       
-      // Fetch Categories: Padrão OU do usuário OU todas se for admin
+      // Fetch Users mapping (basic info)
+      const { data: userData } = await supabase.from('users').select('id, full_name, username');
+      if (userData) setUsers(userData as User[]);
+
+      // Fetch Categories
       const { data: catData } = await supabase
         .from('categories')
         .select('*')
@@ -70,30 +75,23 @@ export default function App() {
       let query = supabase
         .from('receipts')
         .select('*')
-        .order('date', { ascending: false });
+        .order('created_at', { ascending: false });
       
-      // LOGICA CRÍTICA DE EMPRESA:
       if (!isAdmin) {
-          // Se não for admin, vê TODAS as notas da sua localidade (compartilhamento por filial)
-          // Mas não vê notas de outras filiais.
           if (user.location) {
              query = query.eq('location', user.location);
           } else {
-             // Fallback se usuário não tiver location definida: vê apenas suas próprias.
              query = query.eq('user_id', user.id);
           }
       } else {
-          // Se for Admin, obedece o filtro do Header
           if (selectedLocation !== 'all') {
               query = query.eq('location', selectedLocation);
           }
       }
 
       const { data: recData } = await query;
-      
-      if (recData) {
-        setReceipts(recData as any);
-      }
+      if (recData) setReceipts(recData as any);
+
     } catch (e) {
       console.error("Error fetching data", e);
     } finally {
@@ -125,7 +123,6 @@ export default function App() {
         onLocationChange={handleLocationChange}
         currentUser={user}
       >
-        {/* Header Extra para Logout/User Info - Inserido no topo do children */}
         <div className="px-4 pt-2 pb-0 flex justify-between items-center bg-gray-50 text-xs text-gray-500">
              <div className="flex items-center gap-2">
                 <span>Olá, <strong>{user.full_name.split(' ')[0]}</strong></span>
@@ -141,6 +138,7 @@ export default function App() {
             <ReceiptList 
                 receipts={receipts} 
                 categories={categories} 
+                users={users}
                 onRefresh={fetchData} 
                 currentUser={user}
             />

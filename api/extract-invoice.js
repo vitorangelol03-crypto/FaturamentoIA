@@ -1,3 +1,7 @@
+
+// Use ESM import as required by guidelines
+import { GoogleGenAI, Type } from "@google/genai";
+
 export default async function handler(req, res) {
   // Configuração de CORS para permitir chamadas do frontend
   res.setHeader('Access-Control-Allow-Credentials', true);
@@ -19,85 +23,74 @@ export default async function handler(req, res) {
   }
 
   const { image, mimeType } = req.body;
-  const apiKey = process.env.GEMINI_API_KEY;
+  // Guidelines require using process.env.API_KEY directly
+  const apiKey = process.env.API_KEY;
 
   if (!apiKey) {
-    console.error("Server Error: GEMINI_API_KEY is not defined.");
+    console.error("Server Error: API_KEY is not defined.");
     return res.status(500).json({ error: 'Servidor mal configurado: API Key ausente.' });
   }
 
   try {
-    // Definição do Schema JSON para a resposta estruturada
-    // Isso garante que o Gemini retorne exatamente os campos que o frontend espera.
+    // Initialize GoogleGenAI with named parameter apiKey
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
+    // Definição do Schema JSON using Type enum for better reliability
     const responseSchema = {
-      type: "OBJECT",
+      type: Type.OBJECT,
       properties: {
-        establishment: { type: "STRING", description: "Razão social ou Nome fantasia do estabelecimento", nullable: true },
-        date: { type: "STRING", description: "Data da compra no formato YYYY-MM-DD", nullable: true },
-        total_amount: { type: "NUMBER", description: "Valor total da nota fiscal", nullable: true },
-        cnpj: { type: "STRING", description: "Apenas números do CNPJ do emissor", nullable: true },
-        receipt_number: { type: "STRING", description: "Número da nota ou extrato", nullable: true },
-        payment_method: { type: "STRING", description: "Forma de pagamento (Crédito, Débito, Pix, Dinheiro)", nullable: true },
+        establishment: { type: Type.STRING, description: "Razão social ou Nome fantasia do estabelecimento" },
+        date: { type: Type.STRING, description: "Data da compra no formato YYYY-MM-DD" },
+        total_amount: { type: Type.NUMBER, description: "Valor total da nota fiscal" },
+        cnpj: { type: Type.STRING, description: "Apenas números do CNPJ do emissor" },
+        receipt_number: { type: Type.STRING, description: "Número da nota ou extrato" },
+        payment_method: { type: Type.STRING, description: "Forma de pagamento (Crédito, Débito, Pix, Dinheiro)" },
         suggested_category: { 
-          type: "STRING", 
-          description: "Categoria sugerida: Alimentação, Transporte, Saúde, Moradia, Lazer, Educação, Vestuário, Outros",
-          nullable: true
+          type: Type.STRING, 
+          description: "Categoria sugerida: Alimentação, Transporte, Saúde, Moradia, Lazer, Educação, Vestuário, Outros"
         },
         items: {
-          type: "ARRAY",
+          type: Type.ARRAY,
           items: {
-            type: "OBJECT",
+            type: Type.OBJECT,
             properties: {
-              name: { type: "STRING", nullable: true },
-              quantity: { type: "NUMBER", nullable: true },
-              unitPrice: { type: "NUMBER", nullable: true },
-              totalPrice: { type: "NUMBER", nullable: true }
+              name: { type: Type.STRING },
+              quantity: { type: Type.NUMBER },
+              unitPrice: { type: Type.NUMBER },
+              totalPrice: { type: Type.NUMBER }
             }
-          },
-          nullable: true
+          }
         }
       }
     };
 
-    // Chamada REST direta para a API do Google (v1beta)
-    // Modelo atualizado para gemini-2.5-flash conforme solicitado
-    const model = 'gemini-2.5-flash';
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-
-    const payload = {
-      contents: [{
-        parts: [
-          {
-            text: "Analise esta nota fiscal brasileira (NFC-e, SAT, DANFE). Extraia os dados conforme o schema JSON fornecido."
-          },
-          {
-            inline_data: {
-              mime_type: mimeType || 'image/jpeg',
-              data: image
+    // Use ai.models.generateContent with 'gemini-3-flash-preview' for extraction tasks
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: [
+        {
+          parts: [
+            {
+              text: "Analise esta nota fiscal brasileira (NFC-e, SAT, DANFE). Extraia os dados conforme o schema JSON fornecido."
+            },
+            {
+              inlineData: {
+                mimeType: mimeType || 'image/jpeg',
+                data: image
+              }
             }
-          }
-        ]
-      }],
-      generationConfig: {
-        response_mime_type: "application/json",
-        response_schema: responseSchema,
+          ]
+        }
+      ],
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: responseSchema,
         temperature: 0.1
       }
-    };
-
-    const apiResponse = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
     });
 
-    if (!apiResponse.ok) {
-      const errorText = await apiResponse.text();
-      throw new Error(`Gemini API Error (${apiResponse.status}): ${errorText}`);
-    }
-
-    const data = await apiResponse.json();
-    const resultText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    // Extract text from response using the .text property as per guidelines
+    const resultText = response.text;
 
     if (!resultText) {
       throw new Error("A IA não retornou nenhum texto.");

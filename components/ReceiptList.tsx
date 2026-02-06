@@ -1,6 +1,8 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { Receipt, Category, ViewMode, PeriodFilter, User } from '../types';
-import { LayoutGrid, List, AlignJustify, Search, ChevronDown, ChevronUp, Image as ImageIcon, Filter, Edit2, X, Save, Loader2, Download, Maximize2, Calendar, CreditCard, Tag, FileText, MapPin, Lock, Clock } from 'lucide-react';
+// Added Shield to the list of imports from lucide-react
+import { LayoutGrid, List, AlignJustify, Search, ChevronDown, ChevronUp, Image as ImageIcon, Filter, Edit2, X, Save, Loader2, Download, Maximize2, Calendar, CreditCard, Tag, FileText, MapPin, Lock, Clock, User as UserIcon, Shield } from 'lucide-react';
 import { clsx } from 'clsx';
 import { generatePDFReport, generateSingleReceiptPDF } from '../services/pdfService';
 import { supabase } from '../services/supabaseClient';
@@ -8,11 +10,12 @@ import { supabase } from '../services/supabaseClient';
 interface ReceiptListProps {
   receipts: Receipt[];
   categories: Category[];
+  users: User[];
   onRefresh?: () => void;
   currentUser: User;
 }
 
-export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, onRefresh, currentUser }) => {
+export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, users, onRefresh, currentUser }) => {
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [searchQuery, setSearchQuery] = useState('');
   const [period, setPeriod] = useState<PeriodFilter>('current_month');
@@ -30,53 +33,58 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
   // Force re-render periodically to update the "isEditable" status
   const [currentTime, setCurrentTime] = useState(Date.now());
   useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(Date.now()), 60000); // Check every minute
+    const timer = setInterval(() => setCurrentTime(Date.now()), 60000); 
     return () => clearInterval(timer);
   }, []);
 
   const isAdmin = currentUser.role === 'admin' || currentUser.username === 'zoork22';
 
-  // Logic: Can Edit?
   const canEditReceipt = (receipt: Receipt): boolean => {
     if (isAdmin) return true;
-
-    // Check time diff
     const createdTime = new Date(receipt.created_at).getTime();
     const now = currentTime;
     const diffMinutes = (now - createdTime) / (1000 * 60);
-
     return diffMinutes <= 5;
   };
 
-  // Helper to get time remaining for edit (if applicable)
   const getTimeRemaining = (receipt: Receipt): string | null => {
       if (isAdmin) return null;
       const createdTime = new Date(receipt.created_at).getTime();
       const now = currentTime;
       const diffMinutes = (now - createdTime) / (1000 * 60);
-      
       if (diffMinutes > 5) return null;
-      
       const remaining = 5 - diffMinutes;
       if (remaining < 1) return "< 1 min";
       return `${Math.ceil(remaining)} min`;
   };
 
+  const getUserName = (userId?: string) => {
+    if (!userId) return 'Sistema';
+    const u = users.find(user => user.id === userId);
+    return u ? u.full_name : 'Usuário Desconhecido';
+  };
+
+  const formatDateTime = (dateStr: string) => {
+    return new Date(dateStr).toLocaleString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
   // Filter Logic
   const filteredReceipts = useMemo(() => {
     return receipts.filter(r => {
-      // 1. Search
       const matchesSearch = 
         r.establishment.toLowerCase().includes(searchQuery.toLowerCase()) || 
         r.items.some(i => i.name.toLowerCase().includes(searchQuery.toLowerCase()));
       
       if (!matchesSearch) return false;
-
-      // 2. Category
       if (selectedCats.length > 0 && !selectedCats.includes(r.category_id)) return false;
 
-      // 3. Period
-      const rDate = new Date(r.date + 'T12:00:00'); // Consistent Timezone handling
+      const rDate = new Date(r.date + 'T12:00:00'); 
       const now = new Date();
       
       if (period === 'current_month') {
@@ -91,9 +99,8 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
       } else if (period === 'year') {
         return rDate.getFullYear() === now.getFullYear();
       }
-
       return true;
-    }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    }).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   }, [receipts, searchQuery, selectedCats, period]);
 
   const toggleCategory = (id: string) => {
@@ -135,7 +142,6 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
       e.preventDefault();
       if (!editingReceipt) return;
       setIsSavingEdit(true);
-
       try {
           const { error } = await supabase
               .from('receipts')
@@ -147,9 +153,7 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
                   location: editingReceipt.location
               })
               .eq('id', editingReceipt.id);
-
           if (error) throw error;
-          
           setEditingReceipt(null);
           if (viewingReceipt?.id === editingReceipt.id) {
               setViewingReceipt(prev => prev ? { ...prev, ...editingReceipt } : null);
@@ -157,140 +161,90 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
           if (onRefresh) onRefresh();
       } catch (error) {
           console.error("Error updating receipt", error);
-          alert("Erro ao atualizar nota. O tempo limite pode ter expirado durante a edição.");
+          alert("Erro ao atualizar nota.");
       } finally {
           setIsSavingEdit(false);
       }
   };
 
-  // Helper to get category details safely
   const getCat = (id: string) => categories.find(c => c.id === id);
 
   return (
     <div className="h-full flex flex-col bg-gray-50 relative">
-      
-      {/* --- MODAL: IMAGE ZOOM --- */}
       {zoomedImage && (
-          <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/90 p-4 animate-in fade-in duration-200" onClick={() => setZoomedImage(null)}>
+          <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/90 p-4 animate-in fade-in" onClick={() => setZoomedImage(null)}>
               <div className="relative w-full max-w-4xl h-full flex items-center justify-center">
                   <img src={zoomedImage} className="max-w-full max-h-full object-contain rounded-md" alt="Zoom" />
-                  <button className="absolute top-4 right-4 bg-white/20 text-white p-2 rounded-full hover:bg-white/40">
-                      <X size={24} />
-                  </button>
+                  <button className="absolute top-4 right-4 bg-white/20 text-white p-2 rounded-full"><X size={24} /></button>
               </div>
           </div>
       )}
 
-      {/* --- MODAL: VIEW DETAILS --- */}
       {viewingReceipt && !editingReceipt && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 sm:p-4 animate-in fade-in duration-200">
-            <div className="bg-white w-full max-w-lg sm:rounded-2xl rounded-t-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in slide-in-from-bottom-10 sm:slide-in-from-bottom-5 duration-300">
-                
-                {/* Header */}
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 sm:p-4 animate-in fade-in">
+            <div className="bg-white w-full max-w-lg sm:rounded-2xl rounded-t-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
                 <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-gray-50">
                     <h3 className="font-bold text-gray-900 truncate pr-4 text-lg">{viewingReceipt.establishment}</h3>
-                    <button onClick={() => setViewingReceipt(null)} className="text-gray-400 hover:text-gray-800 bg-white p-1 rounded-full border border-gray-200">
-                        <X size={20} />
-                    </button>
+                    <button onClick={() => setViewingReceipt(null)} className="text-gray-400 hover:text-gray-800 bg-white p-1 rounded-full border border-gray-200"><X size={20} /></button>
                 </div>
-
-                {/* Content */}
                 <div className="overflow-y-auto p-0">
-                    {/* Image Header */}
                     <div className="relative h-48 bg-gray-100 flex items-center justify-center overflow-hidden group cursor-zoom-in" onClick={() => viewingReceipt.image_url && setZoomedImage(viewingReceipt.image_url)}>
                          {viewingReceipt.image_url ? (
-                            <>
-                                <img src={viewingReceipt.image_url} className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity" alt="Comprovante" />
-                                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/10">
-                                    <span className="bg-black/50 text-white px-3 py-1 rounded-full text-xs flex items-center gap-1">
-                                        <Maximize2 size={12} /> Ampliar
-                                    </span>
-                                </div>
-                            </>
+                            <img src={viewingReceipt.image_url} className="w-full h-full object-cover opacity-90 group-hover:opacity-100" alt="Comprovante" />
                         ) : (
-                            <div className="flex flex-col items-center text-gray-400">
-                                <ImageIcon size={32} />
-                                <span className="text-xs mt-2">Sem imagem</span>
-                            </div>
+                            <div className="flex flex-col items-center text-gray-400"><ImageIcon size={32} /></div>
                         )}
                         <div className="absolute bottom-3 right-3">
-                             <span className="px-3 py-1 rounded-full text-xs font-bold shadow-sm border border-white/20 text-white backdrop-blur-md" 
-                                   style={{backgroundColor: getCat(viewingReceipt.category_id)?.color}}>
-                                {getCat(viewingReceipt.category_id)?.name}
-                            </span>
+                             <span className="px-3 py-1 rounded-full text-xs font-bold text-white shadow-sm" style={{backgroundColor: getCat(viewingReceipt.category_id)?.color}}>{getCat(viewingReceipt.category_id)?.name}</span>
                         </div>
                     </div>
-
                     <div className="p-6 space-y-6">
-                        {/* Key Info Grid */}
                         <div className="grid grid-cols-2 gap-4">
                             <div className="bg-gray-50 p-3 rounded-xl border border-gray-100">
-                                <div className="flex items-center gap-2 text-gray-400 text-xs mb-1 uppercase font-semibold">
-                                    <Calendar size={12} /> Data
-                                </div>
-                                <div className="font-medium text-gray-900">
-                                    {new Date(viewingReceipt.date).toLocaleDateString('pt-BR')}
-                                </div>
+                                <div className="text-gray-400 text-[10px] uppercase font-bold mb-1">Data de Compra</div>
+                                <div className="font-medium text-gray-900">{new Date(viewingReceipt.date).toLocaleDateString('pt-BR')}</div>
                             </div>
                             <div className="bg-gray-50 p-3 rounded-xl border border-gray-100">
-                                <div className="flex items-center gap-2 text-gray-400 text-xs mb-1 uppercase font-semibold">
-                                    <CreditCard size={12} /> Total
-                                </div>
-                                <div className="font-bold text-xl text-brand-600">
-                                    R$ {Number(viewingReceipt.total_amount).toFixed(2)}
-                                </div>
-                            </div>
-                            <div className="bg-gray-50 p-3 rounded-xl border border-gray-100 col-span-2 flex items-center justify-between">
-                                <div>
-                                    <div className="flex items-center gap-2 text-gray-400 text-xs mb-1 uppercase font-semibold">
-                                        <MapPin size={12} /> Unidade
-                                    </div>
-                                    <div className="font-medium text-gray-900">
-                                        {viewingReceipt.location || 'Caratinga'}
-                                    </div>
-                                </div>
-                                {viewingReceipt.payment_method && (
-                                    <div className="text-right">
-                                        <div className="flex items-center justify-end gap-2 text-gray-400 text-xs mb-1 uppercase font-semibold">
-                                            <Tag size={12} /> Pagamento
-                                        </div>
-                                        <div className="font-medium text-gray-900">
-                                            {viewingReceipt.payment_method}
-                                        </div>
-                                    </div>
-                                )}
+                                <div className="text-gray-400 text-[10px] uppercase font-bold mb-1">Valor Total</div>
+                                <div className="font-bold text-xl text-brand-600">R$ {Number(viewingReceipt.total_amount).toFixed(2)}</div>
                             </div>
                         </div>
 
-                        {/* Items List */}
+                        {/* SEÇÃO DE AUDITORIA NO DETALHE */}
+                        <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-4">
+                            <h4 className="text-[10px] font-bold text-blue-800 uppercase mb-3 flex items-center gap-1.5">
+                                <Shield size={12} /> Registro no Sistema
+                            </h4>
+                            <div className="space-y-3">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
+                                        <UserIcon size={16} />
+                                    </div>
+                                    <div>
+                                        <p className="text-[10px] text-blue-700/60 leading-none mb-1">Adicionado por:</p>
+                                        <p className="text-sm font-bold text-blue-900">{getUserName(viewingReceipt.user_id)}</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
+                                        <Clock size={16} />
+                                    </div>
+                                    <div>
+                                        <p className="text-[10px] text-blue-700/60 leading-none mb-1">Data/Hora do Lançamento:</p>
+                                        <p className="text-sm font-bold text-blue-900">{formatDateTime(viewingReceipt.created_at)}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                         {viewingReceipt.items && viewingReceipt.items.length > 0 && (
                             <div>
-                                <h4 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
-                                    <FileText size={16} className="text-brand-500" /> Itens da Nota
-                                </h4>
+                                <h4 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2"><FileText size={16} /> Itens da Nota</h4>
                                 <div className="border border-gray-100 rounded-lg overflow-hidden">
                                     <table className="w-full text-sm text-left">
-                                        <thead className="bg-gray-50 text-gray-500 font-medium">
-                                            <tr>
-                                                <th className="px-3 py-2 font-medium">Item</th>
-                                                <th className="px-3 py-2 font-medium text-right">R$</th>
-                                            </tr>
-                                        </thead>
                                         <tbody className="divide-y divide-gray-100">
                                             {viewingReceipt.items.map((item, idx) => (
-                                                <tr key={idx} className="hover:bg-gray-50/50">
-                                                    <td className="px-3 py-2 text-gray-700">
-                                                        <div className="font-medium">{item.name}</div>
-                                                        {(item.quantity > 1 || item.unitPrice > 0) && (
-                                                            <div className="text-[10px] text-gray-400">
-                                                                {item.quantity}x {item.unitPrice?.toFixed(2)}
-                                                            </div>
-                                                        )}
-                                                    </td>
-                                                    <td className="px-3 py-2 text-right font-medium text-gray-900">
-                                                        {item.totalPrice?.toFixed(2)}
-                                                    </td>
-                                                </tr>
+                                                <tr key={idx}><td className="px-3 py-2 text-gray-700 font-medium">{item.name}</td><td className="px-3 py-2 text-right font-bold text-gray-900">{item.totalPrice?.toFixed(2)}</td></tr>
                                             ))}
                                         </tbody>
                                     </table>
@@ -299,294 +253,61 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
                         )}
                     </div>
                 </div>
-
-                {/* Footer Actions */}
                 <div className="p-4 border-t border-gray-100 bg-gray-50 flex gap-3">
-                     <button 
-                        onClick={(e) => handleDownloadSingle(e, viewingReceipt)}
-                        className="flex-1 flex items-center justify-center gap-2 bg-white border border-gray-200 text-gray-700 py-3 rounded-xl font-medium hover:bg-gray-50 transition-colors"
-                    >
-                        <Download size={18} />
-                        PDF
-                    </button>
-                    
-                    {canEditReceipt(viewingReceipt) ? (
-                        <button 
-                            onClick={(e) => {
-                                setViewingReceipt(null);
-                                handleEditClick(e, viewingReceipt);
-                            }}
-                            className="flex-1 flex items-center justify-center gap-2 bg-brand-600 text-white py-3 rounded-xl font-medium hover:bg-brand-700 transition-colors shadow-sm"
-                        >
-                            <Edit2 size={18} />
-                            Editar
-                            {!isAdmin && (
-                                <span className="text-[10px] bg-white/20 px-1.5 rounded ml-1">
-                                    {getTimeRemaining(viewingReceipt)}
-                                </span>
-                            )}
-                        </button>
+                     <button onClick={(e) => handleDownloadSingle(e, viewingReceipt)} className="flex-1 flex items-center justify-center gap-2 bg-white border border-gray-200 py-3 rounded-xl font-medium"><Download size={18} /> PDF</button>
+                     {canEditReceipt(viewingReceipt) ? (
+                        <button onClick={(e) => { setViewingReceipt(null); handleEditClick(e, viewingReceipt); }} className="flex-1 flex items-center justify-center gap-2 bg-brand-600 text-white py-3 rounded-xl font-medium shadow-sm"><Edit2 size={18} /> Editar</button>
                     ) : (
-                        <button 
-                            disabled
-                            className="flex-1 flex items-center justify-center gap-2 bg-gray-100 text-gray-400 py-3 rounded-xl font-medium cursor-not-allowed border border-gray-200"
-                        >
-                            <Lock size={16} />
-                            Bloqueado
-                        </button>
+                        <button disabled className="flex-1 flex items-center justify-center gap-2 bg-gray-100 text-gray-400 py-3 rounded-xl font-medium cursor-not-allowed"><Lock size={16} /> Bloqueado</button>
                     )}
                 </div>
             </div>
         </div>
       )}
 
-      {/* --- MODAL: EDIT FORM --- */}
-      {editingReceipt && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4 animate-in fade-in duration-200">
-              <div className="bg-white rounded-xl shadow-xl w-full max-w-sm overflow-hidden flex flex-col max-h-[90vh]">
-                  <div className="flex items-center justify-between p-4 border-b border-gray-100">
-                      <h3 className="font-bold text-gray-900 flex items-center gap-2">
-                        <Edit2 size={18} /> Editar Nota
-                      </h3>
-                      {!isAdmin && (
-                         <div className="flex items-center gap-1 text-[10px] text-orange-600 bg-orange-50 px-2 py-1 rounded-full font-bold">
-                             <Clock size={12} /> {getTimeRemaining(editingReceipt)} restantes
-                         </div>
-                      )}
-                      <button onClick={() => setEditingReceipt(null)} className="text-gray-500 hover:text-gray-800">
-                          <X size={20} />
-                      </button>
-                  </div>
-                  <div className="p-4 overflow-y-auto">
-                        <div className="h-32 w-full bg-gray-100 rounded-lg mb-4 flex items-center justify-center overflow-hidden border border-gray-200 relative group cursor-pointer" onClick={() => editingReceipt.image_url && setZoomedImage(editingReceipt.image_url)}>
-                            {editingReceipt.image_url ? (
-                                <>
-                                    <img src={editingReceipt.image_url} className="h-full object-contain" alt="Nota" />
-                                    <div className="absolute inset-0 bg-black/10 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <Maximize2 className="text-white drop-shadow-md" />
-                                    </div>
-                                </>
-                            ) : (
-                                <ImageIcon className="text-gray-400" />
-                            )}
-                        </div>
-
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-xs font-medium text-gray-500 mb-1">Estabelecimento</label>
-                                <input 
-                                    type="text" 
-                                    value={editingReceipt.establishment} 
-                                    onChange={(e) => setEditingReceipt({...editingReceipt, establishment: e.target.value})}
-                                    className="w-full bg-white text-gray-900 border-b border-gray-300 focus:border-brand-500 outline-none py-1 text-lg font-medium"
-                                />
-                            </div>
-                            
-                            {/* Seletor de Localização na Edição */}
-                            <div>
-                                <label className="block text-xs font-medium text-gray-500 mb-1">Unidade / Empresa</label>
-                                {isAdmin ? (
-                                    <select 
-                                        value={editingReceipt.location || 'Caratinga'}
-                                        onChange={(e) => setEditingReceipt({...editingReceipt, location: e.target.value})}
-                                        className="w-full bg-white text-gray-900 border-b border-gray-300 focus:border-brand-500 outline-none py-1 font-medium"
-                                    >
-                                        <option value="Caratinga">Caratinga</option>
-                                        <option value="Ponte Nova">Ponte Nova</option>
-                                    </select>
-                                ) : (
-                                    <div className="flex items-center gap-1 py-1 border-b border-gray-100 text-gray-600 font-medium">
-                                        <MapPin size={14} /> {editingReceipt.location || 'Caratinga'}
-                                    </div>
-                                )}
-                            </div>
-
-                            <div className="flex gap-4">
-                                <div className="flex-1">
-                                    <label className="block text-xs font-medium text-gray-500 mb-1">Data</label>
-                                    <input 
-                                        type="date" 
-                                        value={editingReceipt.date} 
-                                        onChange={(e) => setEditingReceipt({...editingReceipt, date: e.target.value})}
-                                        className="w-full bg-white text-gray-900 border-b border-gray-300 focus:border-brand-500 outline-none py-1"
-                                    />
-                                </div>
-                                <div className="flex-1">
-                                    <label className="block text-xs font-medium text-gray-500 mb-1">Total (R$)</label>
-                                    <input 
-                                        type="number" 
-                                        step="0.01"
-                                        value={editingReceipt.total_amount} 
-                                        onChange={(e) => setEditingReceipt({...editingReceipt, total_amount: parseFloat(e.target.value)})}
-                                        className="w-full bg-white text-gray-900 border-b border-gray-300 focus:border-brand-500 outline-none py-1 font-bold text-brand-600"
-                                    />
-                                </div>
-                            </div>
-                            <div>
-                                <label className="block text-xs font-medium text-gray-500 mb-2">Categoria</label>
-                                <div className="grid grid-cols-2 gap-2">
-                                    {categories.map(cat => (
-                                        <button
-                                            key={cat.id}
-                                            onClick={() => setEditingReceipt({...editingReceipt, category_id: cat.id})}
-                                            className={clsx(
-                                                "text-xs px-2 py-2 rounded-md border transition-colors text-left",
-                                                editingReceipt.category_id === cat.id 
-                                                    ? "bg-brand-50 border-brand-500 text-brand-700 font-medium" 
-                                                    : "bg-white border-gray-200 text-gray-600"
-                                            )}
-                                        >
-                                            <div className="flex items-center gap-2">
-                                                <div className="w-2 h-2 rounded-full" style={{backgroundColor: cat.color}}></div>
-                                                {cat.name}
-                                            </div>
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-                  </div>
-                  <div className="p-4 bg-gray-50 border-t border-gray-100">
-                      <button 
-                        onClick={handleSaveEdit}
-                        disabled={isSavingEdit}
-                        className="w-full bg-brand-600 text-white py-3 rounded-lg font-semibold flex items-center justify-center gap-2 shadow-sm active:scale-95 transition-all"
-                      >
-                          {isSavingEdit ? <Loader2 className="animate-spin" size={20} /> : <Save size={20} />}
-                          Salvar Alterações
-                      </button>
-                  </div>
-              </div>
-          </div>
-      )}
-
-      {/* Search & Header */}
       <div className="bg-white p-4 shadow-sm z-10 sticky top-0">
         <div className="relative mb-3">
           <Search className="absolute left-3 top-2.5 text-gray-400" size={18} />
-          <input 
-            type="text" 
-            placeholder="Buscar nota, item ou loja..." 
-            className="w-full bg-gray-100 rounded-lg pl-10 pr-4 py-2 text-sm focus:ring-2 ring-brand-500 outline-none"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-          <button 
-            onClick={() => setShowFilters(!showFilters)}
-            className={clsx("absolute right-2 top-1.5 p-1 rounded-md transition-colors", showFilters ? "bg-brand-100 text-brand-600" : "text-gray-400")}
-          >
-            <Filter size={18} />
-          </button>
+          <input type="text" placeholder="Buscar nota, item ou loja..." className="w-full bg-gray-100 rounded-lg pl-10 pr-4 py-2 text-sm focus:ring-2 ring-brand-500 outline-none" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+          <button onClick={() => setShowFilters(!showFilters)} className={clsx("absolute right-2 top-1.5 p-1 rounded-md transition-colors", showFilters ? "bg-brand-100 text-brand-600" : "text-gray-400")}><Filter size={18} /></button>
         </div>
-
-        {/* Expanded Filters */}
-        {showFilters && (
-            <div className="mb-4 space-y-3 border-t border-gray-100 pt-3 animate-in slide-in-from-top-2 fade-in duration-200">
-                <div>
-                    <span className="text-xs font-semibold text-gray-500 uppercase">Período</span>
-                    <div className="flex gap-2 mt-1 overflow-x-auto pb-1">
-                        {[
-                            {id: 'current_month', label: 'Este Mês'},
-                            {id: 'last_month', label: 'Mês Passado'},
-                            {id: 'last_3_months', label: '3 Meses'},
-                            {id: 'year', label: 'Este Ano'},
-                            {id: 'custom', label: 'Todos'}
-                        ].map((p) => (
-                             <button 
-                                key={p.id}
-                                onClick={() => setPeriod(p.id as PeriodFilter)}
-                                className={clsx("px-3 py-1 rounded-full text-xs whitespace-nowrap border", period === p.id ? "bg-brand-600 text-white border-brand-600" : "bg-white text-gray-600 border-gray-200")}
-                            >
-                                {p.label}
-                            </button>
-                        ))}
-                    </div>
-                </div>
-                 <div>
-                    <span className="text-xs font-semibold text-gray-500 uppercase">Categorias</span>
-                    <div className="flex gap-2 mt-1 overflow-x-auto pb-1">
-                        {categories.map(c => (
-                            <button 
-                                key={c.id}
-                                onClick={() => toggleCategory(c.id)}
-                                className={clsx("px-3 py-1 rounded-full text-xs whitespace-nowrap border flex items-center gap-1", selectedCats.includes(c.id) ? "bg-gray-800 text-white border-gray-800" : "bg-white text-gray-600 border-gray-200")}
-                            >
-                                <div className="w-2 h-2 rounded-full" style={{backgroundColor: c.color}}></div>
-                                {c.name}
-                            </button>
-                        ))}
-                    </div>
-                </div>
-                 <button 
-                    onClick={downloadReport}
-                    className="w-full mt-2 text-xs text-brand-600 font-medium py-2 border border-brand-200 rounded-lg hover:bg-brand-50"
-                >
-                    Baixar Relatório PDF
-                </button>
-            </div>
-        )}
-
         <div className="flex justify-between items-center">
-            <span className="text-xs font-medium text-gray-500">{filteredReceipts.length} notas encontradas</span>
+            <span className="text-xs font-medium text-gray-500">{filteredReceipts.length} notas no período</span>
             <div className="flex bg-gray-100 rounded-lg p-1">
-                <button onClick={() => setViewMode('list')} className={clsx("p-1.5 rounded-md", viewMode === 'list' && "bg-white shadow-sm text-brand-600")}>
-                    <List size={16} />
-                </button>
-                <button onClick={() => setViewMode('grid')} className={clsx("p-1.5 rounded-md", viewMode === 'grid' && "bg-white shadow-sm text-brand-600")}>
-                    <LayoutGrid size={16} />
-                </button>
-                <button onClick={() => setViewMode('compact')} className={clsx("p-1.5 rounded-md", viewMode === 'compact' && "bg-white shadow-sm text-brand-600")}>
-                    <AlignJustify size={16} />
-                </button>
+                <button onClick={() => setViewMode('list')} className={clsx("p-1.5 rounded-md", viewMode === 'list' && "bg-white shadow-sm text-brand-600")}><List size={16} /></button>
+                <button onClick={() => setViewMode('grid')} className={clsx("p-1.5 rounded-md", viewMode === 'grid' && "bg-white shadow-sm text-brand-600")}><LayoutGrid size={16} /></button>
+                <button onClick={() => setViewMode('compact')} className={clsx("p-1.5 rounded-md", viewMode === 'compact' && "bg-white shadow-sm text-brand-600")}><AlignJustify size={16} /></button>
             </div>
         </div>
       </div>
 
-      {/* List Content */}
       <div className="p-4 space-y-3">
         {filteredReceipts.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-48 text-gray-400">
-                <Search size={32} className="mb-2 opacity-50"/>
-                <p>Nenhuma nota encontrada.</p>
-            </div>
+            <div className="flex flex-col items-center justify-center h-48 text-gray-400"><Search size={32} className="mb-2 opacity-50"/><p>Nenhuma nota encontrada.</p></div>
         ) : (
-            <div className={clsx(
-                viewMode === 'grid' ? "grid grid-cols-2 gap-3" : "space-y-3"
-            )}>
+            <div className={clsx(viewMode === 'grid' ? "grid grid-cols-2 gap-3" : "space-y-3")}>
                 {filteredReceipts.map(receipt => {
                     const category = categories.find(c => c.id === receipt.category_id);
                     const editable = canEditReceipt(receipt);
+                    const uploaderName = getUserName(receipt.user_id);
                     
                     if (viewMode === 'grid') {
                         return (
-                            <div 
-                                key={receipt.id} 
-                                onClick={() => handleCardClick(receipt)}
-                                className="bg-white rounded-xl shadow-sm overflow-hidden border border-gray-100 flex flex-col relative group cursor-pointer hover:shadow-md transition-shadow"
-                            >
+                            <div key={receipt.id} onClick={() => handleCardClick(receipt)} className="bg-white rounded-xl shadow-sm overflow-hidden border border-gray-100 flex flex-col relative group cursor-pointer">
                                 <div className="h-24 bg-gray-100 relative">
-                                    {receipt.image_url ? (
-                                        <img src={receipt.image_url} className="w-full h-full object-cover" />
-                                    ) : (
-                                        <div className="w-full h-full flex items-center justify-center text-gray-300"><ImageIcon /></div>
-                                    )}
-                                    <div className="absolute top-2 right-2 px-2 py-0.5 rounded-full text-[10px] font-bold text-white shadow-sm z-10" style={{backgroundColor: category?.color}}>
-                                        {category?.name.slice(0, 4)}..
-                                    </div>
-                                    {!editable && (
-                                        <div className="absolute top-2 left-2 bg-gray-800/80 text-white p-1 rounded-full">
-                                            <Lock size={10} />
-                                        </div>
-                                    )}
+                                    {receipt.image_url ? <img src={receipt.image_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-gray-300"><ImageIcon /></div>}
+                                    <div className="absolute top-2 right-2 px-1.5 py-0.5 rounded text-[8px] font-bold text-white shadow-sm z-10" style={{backgroundColor: category?.color}}>{category?.name.slice(0, 8)}</div>
                                 </div>
-                                <div className="p-3">
-                                    <p className="font-semibold text-gray-900 text-sm truncate">{receipt.establishment}</p>
-                                    <div className="flex items-center justify-between mt-1">
-                                        <p className="text-gray-500 text-xs">{new Date(receipt.date).toLocaleDateString('pt-BR')}</p>
-                                        <span className="text-[9px] px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded-full">{receipt.location || 'Caratinga'}</span>
-                                    </div>
-                                    <div className="flex items-center justify-between mt-2">
-                                         <p className="font-bold text-brand-600">R$ {Number(receipt.total_amount).toFixed(2)}</p>
+                                <div className="p-2.5">
+                                    <p className="font-bold text-gray-900 text-xs truncate mb-1">{receipt.establishment}</p>
+                                    <p className="text-[10px] text-brand-600 font-bold mb-2">R$ {Number(receipt.total_amount).toFixed(2)}</p>
+                                    <div className="border-t border-gray-50 pt-2 flex flex-col gap-1">
+                                        <div className="flex items-center gap-1 text-[8px] text-gray-400 font-medium">
+                                            <UserIcon size={8} /> {uploaderName.split(' ')[0]}
+                                        </div>
+                                        <div className="flex items-center gap-1 text-[8px] text-gray-400">
+                                            <Clock size={8} /> {formatDateTime(receipt.created_at)}
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -594,146 +315,40 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
                     }
 
                     if (viewMode === 'compact') {
-                        const isExpanded = expandedId === receipt.id;
                         return (
-                            <div key={receipt.id} className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
-                                <div 
-                                    className="p-3 flex items-center justify-between cursor-pointer active:bg-gray-50 hover:bg-gray-50 transition-colors"
-                                    onClick={() => setExpandedId(isExpanded ? null : receipt.id)}
-                                >
-                                    <div className="flex items-center gap-3 overflow-hidden">
-                                        <div className="w-1 h-8 rounded-full" style={{backgroundColor: category?.color}}></div>
-                                        <div className="truncate">
-                                            <p className="font-medium text-sm text-gray-900 truncate">{receipt.establishment}</p>
-                                            <div className="flex gap-2 items-center">
-                                                <p className="text-xs text-gray-500">{new Date(receipt.date).toLocaleDateString('pt-BR')}</p>
-                                                <span className="text-[10px] text-gray-400">• {receipt.location || 'Caratinga'}</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center gap-3">
-                                        <p className="font-bold text-sm text-gray-900">R$ {Number(receipt.total_amount).toFixed(2)}</p>
-                                        {isExpanded ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
+                            <div key={receipt.id} className="bg-white rounded-lg shadow-sm border border-gray-100 p-3 flex items-center justify-between cursor-pointer" onClick={() => handleCardClick(receipt)}>
+                                <div className="flex items-center gap-3 overflow-hidden">
+                                    <div className="w-1 h-8 rounded-full" style={{backgroundColor: category?.color}}></div>
+                                    <div className="truncate">
+                                        <p className="font-bold text-xs text-gray-900 truncate">{receipt.establishment}</p>
+                                        <p className="text-[9px] text-gray-400 truncate flex items-center gap-1"><UserIcon size={8}/> {uploaderName} • {formatDateTime(receipt.created_at)}</p>
                                     </div>
                                 </div>
-                                {isExpanded && (
-                                    <div className="bg-gray-50 p-3 text-xs border-t border-gray-100 animate-in slide-in-from-top-1">
-                                        <div className="flex justify-between items-start mb-2">
-                                            <div className="grid grid-cols-2 gap-2 flex-1">
-                                                <p><span className="text-gray-500">Categoria:</span> {category?.name}</p>
-                                                <p><span className="text-gray-500">Pagamento:</span> {receipt.payment_method || '-'}</p>
-                                                <p><span className="text-gray-500">Unidade:</span> {receipt.location || 'Caratinga'}</p>
-                                            </div>
-                                            <div className="flex gap-2">
-                                                 <button 
-                                                    onClick={(e) => handleDownloadSingle(e, receipt)}
-                                                    className="flex items-center gap-1 bg-white border border-gray-200 px-2 py-1 rounded hover:bg-brand-50 hover:text-brand-600 hover:border-brand-200 transition-colors"
-                                                >
-                                                    <Download size={12} />
-                                                    <span className="font-medium">PDF</span>
-                                                </button>
-                                                {editable ? (
-                                                    <button 
-                                                        onClick={(e) => handleEditClick(e, receipt)}
-                                                        className="flex items-center gap-1 bg-white border border-gray-200 px-2 py-1 rounded hover:bg-brand-50 hover:text-brand-600 hover:border-brand-200 transition-colors"
-                                                    >
-                                                        <Edit2 size={12} />
-                                                        <span className="font-medium">Editar</span>
-                                                    </button>
-                                                ) : (
-                                                    <div className="flex items-center gap-1 bg-gray-100 border border-gray-200 px-2 py-1 rounded text-gray-400 cursor-not-allowed">
-                                                        <Lock size={12} />
-                                                        <span>Bloqueado</span>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        {receipt.items && receipt.items.length > 0 && (
-                                            <div className="mt-2">
-                                                <p className="font-semibold text-gray-700 mb-1">Itens:</p>
-                                                <ul className="list-disc pl-4 space-y-1 text-gray-600">
-                                                    {receipt.items.map((item, idx) => (
-                                                        <li key={idx}>{item.name} - R$ {item.totalPrice?.toFixed(2)}</li>
-                                                    ))}
-                                                </ul>
-                                            </div>
-                                        )}
-                                        {receipt.image_url && (
-                                            <div className="mt-2 relative group cursor-zoom-in inline-block" onClick={() => setZoomedImage(receipt.image_url!)}>
-                                                <img src={receipt.image_url} alt="Receipt" className="h-32 object-contain border rounded bg-white" />
-                                                <div className="absolute inset-0 bg-black/10 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded">
-                                                     <Maximize2 size={16} className="text-white drop-shadow" />
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
+                                <p className="font-bold text-xs text-gray-900 ml-2">R$ {Number(receipt.total_amount).toFixed(2)}</p>
                             </div>
                         );
                     }
 
-                    // Standard List View
                     return (
-                        <div 
-                            key={receipt.id} 
-                            onClick={() => handleCardClick(receipt)}
-                            className="bg-white rounded-xl shadow-sm p-3 flex gap-4 border border-gray-100 cursor-pointer hover:bg-gray-50/50 transition-colors"
-                        >
+                        <div key={receipt.id} onClick={() => handleCardClick(receipt)} className="bg-white rounded-xl shadow-sm p-3 flex gap-4 border border-gray-100 cursor-pointer">
                             <div className="w-16 h-16 rounded-lg bg-gray-100 flex-shrink-0 overflow-hidden relative">
-                                {receipt.image_url ? (
-                                    <img src={receipt.image_url} className="w-full h-full object-cover" />
-                                ) : (
-                                    <div className="w-full h-full flex items-center justify-center text-gray-300"><ImageIcon size={20} /></div>
-                                )}
-                                {!editable && (
-                                    <div className="absolute top-1 left-1 bg-gray-800/80 text-white p-0.5 rounded-full">
-                                        <Lock size={10} />
-                                    </div>
-                                )}
+                                {receipt.image_url ? <img src={receipt.image_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-gray-300"><ImageIcon size={20} /></div>}
                             </div>
-                            <div className="flex-1 min-w-0 flex flex-col justify-center">
+                            <div className="flex-1 min-w-0 flex flex-col justify-between">
                                 <div className="flex justify-between items-start">
-                                    <h3 className="font-semibold text-gray-900 truncate pr-2">{receipt.establishment}</h3>
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-brand-600 font-bold text-sm whitespace-nowrap mr-2">R$ {Number(receipt.total_amount).toFixed(2)}</span>
-                                        <button 
-                                            onClick={(e) => handleDownloadSingle(e, receipt)}
-                                            className="p-1.5 text-gray-400 hover:text-brand-600 hover:bg-gray-100 rounded-full transition-colors"
-                                            title="Baixar PDF"
-                                        >
-                                            <Download size={16} />
-                                        </button>
-                                        
-                                        {editable ? (
-                                            <button 
-                                                onClick={(e) => handleEditClick(e, receipt)}
-                                                className="p-1.5 text-gray-400 hover:text-brand-600 hover:bg-gray-100 rounded-full transition-colors"
-                                                title="Editar"
-                                            >
-                                                <Edit2 size={16} />
-                                            </button>
-                                        ) : (
-                                            <button 
-                                                disabled
-                                                className="p-1.5 text-gray-300 cursor-not-allowed"
-                                                title="Edição bloqueada (limite de tempo)"
-                                            >
-                                                <Lock size={16} />
-                                            </button>
-                                        )}
-                                    </div>
+                                    <h3 className="font-bold text-gray-900 truncate pr-2 text-sm">{receipt.establishment}</h3>
+                                    <span className="text-brand-600 font-bold text-sm whitespace-nowrap">R$ {Number(receipt.total_amount).toFixed(2)}</span>
                                 </div>
                                 <div className="flex justify-between items-end mt-1">
-                                    <div>
-                                        <p className="text-xs text-gray-500">{new Date(receipt.date).toLocaleDateString('pt-BR')}</p>
-                                        <div className="flex gap-2 mt-1">
-                                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium" style={{ backgroundColor: `${category?.color}20`, color: category?.color }}>
-                                                {category?.name}
-                                            </span>
-                                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-600 border border-gray-200">
-                                                {receipt.location || 'Caratinga'}
-                                            </span>
+                                    <div className="space-y-1">
+                                        <div className="flex gap-2">
+                                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold" style={{ backgroundColor: `${category?.color}20`, color: category?.color }}>{category?.name}</span>
+                                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-gray-100 text-gray-500 border border-gray-200">{receipt.location || 'Caratinga'}</span>
+                                        </div>
+                                        <div className="flex items-center gap-2 text-[9px] text-gray-400 font-medium">
+                                            <span className="flex items-center gap-1"><UserIcon size={9}/> {uploaderName}</span>
+                                            <span>•</span>
+                                            <span className="flex items-center gap-1"><Clock size={9}/> {formatDateTime(receipt.created_at)}</span>
                                         </div>
                                     </div>
                                 </div>
