@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { RefreshCw, Download, Search, FileText, Eye, AlertCircle, CheckCircle, X, Clock, Filter, XCircle } from 'lucide-react';
 import { User, SefazNote, SefazDocZip } from '../types';
-import { syncSefazNotes, getSefazNotes, saveSefazNote, getLastNSU, updateLastNSU } from '../services/sefazService';
+import { syncSefazNotes, getSefazNotes, saveSefazNote, getLastNSU, updateLastNSU, linkReceiptsToSefazNotes } from '../services/sefazService';
 import { generateDanfePDF } from '../services/pdfService';
 import { clsx } from 'clsx';
 
@@ -152,6 +152,16 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser }) => {
       setLastSyncTime(new Date().toLocaleString('pt-BR'));
       setSuccessMsg(`Sincronização concluída! ${savedCount} documento(s) processado(s). NSU: ${result.ultNSU}`);
       await loadData();
+
+      try {
+        const linkResult = await linkReceiptsToSefazNotes(userLocation);
+        if (linkResult.linked > 0) {
+          setSuccessMsg(prev => `${prev} | ${linkResult.linked} nota(s) vinculada(s) automaticamente.`);
+          await loadData();
+        }
+      } catch (linkErr) {
+        console.error('Erro ao vincular notas:', linkErr);
+      }
     } catch (err: any) {
       setError(err.message || 'Erro ao sincronizar com SEFAZ.');
     } finally {
@@ -368,6 +378,15 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser }) => {
               )}
 
               <div className="flex items-center gap-2 pt-1 border-t border-gray-50">
+                {note.receipt_id ? (
+                  <span className="inline-flex items-center gap-1 px-2 py-1.5 text-xs font-medium text-green-600 bg-green-50 rounded-lg">
+                    <CheckCircle size={12} /> Vinculada
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-2 py-1.5 text-xs font-medium text-amber-600 bg-amber-50 rounded-lg">
+                    <AlertCircle size={12} /> Sem recibo
+                  </span>
+                )}
                 <button
                   onClick={() => setViewingXml(note)}
                   className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-brand-600 bg-brand-50 rounded-lg hover:bg-brand-100 transition-colors"

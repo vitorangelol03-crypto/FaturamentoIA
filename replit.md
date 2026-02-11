@@ -42,12 +42,21 @@ A smart receipt/invoice management application built with React and TypeScript. 
 - Tracks sync progress in `sefaz_sync_control` table (ultimo_nsu per location)
 - Handles resNFe (summaries) and nfeProc (full NF-e) document types
 - DANFE PDF generation via jsPDF for each note
+- Auto-linking: After sync, system scans receipts table for matching access keys and links them
+- Linked notes show "Vinculada" badge, unlinked show "Sem recibo"
+
+## Receipt-SEFAZ Linking
+- AI (Gemini) extracts 44-digit access_key from scanned receipts
+- When receipt is saved, system tries to link with matching SEFAZ note (by chave_acesso)
+- After SEFAZ sync, system batch-scans all unlinked notes against receipts
+- Linking stored via receipt_id column on sefaz_notes table
+- ReceiptList shows "SEFAZ" badge on receipts that have access_key
 
 ## Supabase Tables
 - `users` - User accounts with roles (admin/user) and locations
-- `receipts` - Scanned receipt data
+- `receipts` - Scanned receipt data (includes access_key for NF-e linking)
 - `categories` - Expense categories
-- `sefaz_notes` - Fiscal notes from SEFAZ (chave_acesso, emitente, valor, XML, etc.)
+- `sefaz_notes` - Fiscal notes from SEFAZ (chave_acesso, emitente, valor, XML, receipt_id for linking)
 - `sefaz_sync_control` - Last synced NSU tracking
 - Note: RLS policies need anon access for sefaz_notes and sefaz_sync_control
 
@@ -56,6 +65,7 @@ A smart receipt/invoice management application built with React and TypeScript. 
 - Note: API endpoints only work in dev mode (Vite middleware). For production, a separate backend or edge functions would be needed.
 
 ## Recent Changes
+- 2026-02-11: Added receipt-SEFAZ note auto-linking via access_key (chave de acesso 44 dígitos)
 - 2026-02-11: Added SEFAZ Monitor for Ponte Nova (CNPJ 53824315000110) with separate PFX certificate, multi-location support
 - 2026-02-06: Added SEFAZ Monitor with node-mde integration, DANFE PDF generation, complete admin UI for NF-e monitoring
 - 2026-02-06: Initial Replit setup - configured Vite for port 5000, removed ESM import maps, added API middleware for Gemini

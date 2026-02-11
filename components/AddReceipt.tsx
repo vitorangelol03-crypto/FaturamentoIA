@@ -292,10 +292,20 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, cur
         items: rawData.items || [],
         image_url: base64,
         location: determinedLocation,
-        user_id: currentUser.id // Vincula ao usuário logado
+        user_id: currentUser.id,
+        access_key: rawData.access_key || null,
       }).select().single();
 
       if (error) throw error;
+
+      if (rawData.access_key) {
+        try {
+          const { linkSingleReceipt } = await import('../services/sefazService');
+          await linkSingleReceipt(rawData.access_key, insertedData.id, determinedLocation);
+        } catch (linkErr) {
+          console.error('Erro ao vincular com SEFAZ:', linkErr);
+        }
+      }
 
       updateItem(nextItem.id, { 
           status: 'success', 

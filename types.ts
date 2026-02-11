@@ -68,6 +68,7 @@ export interface SefazNote {
   location?: string;
   created_at?: string;
   updated_at?: string;
+  receipt_id?: string;
 }
 
 export interface SefazSyncResult {

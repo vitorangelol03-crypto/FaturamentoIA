@@ -3,7 +3,7 @@ import { Receipt, Category, ViewMode, PeriodFilter, User } from '../types';
 import { 
   LayoutGrid, List, AlignJustify, Search, ChevronDown, ChevronUp, 
   Image as ImageIcon, Filter, Edit2, X, Save, Loader2, Download, 
-  Maximize2, Calendar, CreditCard, Tag, FileText, MapPin, Lock, 
+  Maximize2, Calendar, CreditCard, Tag, FileText, MapPin, Lock, CheckCircle,
   Clock, User as UserIcon, Shield, Activity, AlertCircle, FileDown
 } from 'lucide-react';
 import { clsx } from 'clsx';
@@ -399,6 +399,11 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
                                         <div className="flex gap-2">
                                             <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold" style={{ backgroundColor: `${category?.color || '#666'}20`, color: category?.color || '#666' }}>{category?.name || 'Outros'}</span>
                                             <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-gray-100 text-gray-500 border border-gray-200">{receipt.location || 'Caratinga'}</span>
+                                            {receipt.access_key && (
+                                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold text-green-600 bg-green-50 border border-green-100">
+                                                <CheckCircle size={8} /> SEFAZ
+                                              </span>
+                                            )}
                                         </div>
                                         <div className="flex items-center gap-2 text-[9px] text-gray-400 font-medium">
                                             <span className="flex items-center gap-1"><UserIcon size={9}/> {uploaderName}</span>

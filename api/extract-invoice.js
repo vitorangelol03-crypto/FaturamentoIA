@@ -42,6 +42,7 @@ export default async function handler(req, res) {
         receipt_number: { type: Type.STRING },
         payment_method: { type: Type.STRING },
         suggested_category: { type: Type.STRING },
+        access_key: { type: Type.STRING, description: "Chave de acesso da NF-e com 44 dígitos numéricos, geralmente encontrada no rodapé ou QR code da nota" },
         items: {
           type: Type.ARRAY,
           items: {
@@ -64,7 +65,7 @@ export default async function handler(req, res) {
       contents: [
         {
           parts: [
-            { text: "Extraia os dados desta nota fiscal brasileira e retorne apenas o JSON puro." },
+            { text: "Extraia os dados desta nota fiscal brasileira. Procure também a chave de acesso (44 dígitos numéricos geralmente no rodapé ou próximo ao QR code). Retorne apenas o JSON puro." },
             {
               inlineData: {
                 mimeType: mimeType || 'image/jpeg',
