@@ -60,6 +60,14 @@ export default function App() {
     }
   }, []);
 
+  const removeOverlayFromStack = useCallback((name: string) => {
+    const stack = historyStackRef.current;
+    const idx = stack.findIndex(e => e.type === 'overlay' && (e as any).name === name);
+    if (idx !== -1) {
+      stack.splice(idx, 1);
+    }
+  }, []);
+
   const handleTabChange = useCallback((tab: string) => {
     setCurrentTab(tab);
     const entry: HistoryEntry = { type: 'tab', tab };
@@ -210,6 +218,7 @@ export default function App() {
             currentUser={user}
             pushOverlay={pushOverlay}
             closeOverlay={closeOverlay}
+            removeOverlayFromStack={removeOverlayFromStack}
             registerOverlayClose={registerOverlayClose}
             unregisterOverlayClose={unregisterOverlayClose}
           />

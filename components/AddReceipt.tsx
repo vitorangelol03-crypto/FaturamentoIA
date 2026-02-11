@@ -12,6 +12,7 @@ interface AddReceiptProps {
   currentUser: User;
   pushOverlay: (name: string) => void;
   closeOverlay: (name: string) => void;
+  removeOverlayFromStack: (name: string) => void;
   registerOverlayClose: (name: string, handler: () => void) => void;
   unregisterOverlayClose: (name: string) => void;
 }
@@ -33,7 +34,7 @@ interface QueueItem {
   extractedCNPJ?: string;
 }
 
-export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, currentUser, pushOverlay, closeOverlay, registerOverlayClose, unregisterOverlayClose }) => {
+export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, currentUser, pushOverlay, closeOverlay, removeOverlayFromStack, registerOverlayClose, unregisterOverlayClose }) => {
   const [mode, setMode] = useState<'upload' | 'camera' | 'queue' | 'summary'>('upload');
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -167,7 +168,7 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, cur
     stopCamera();
     document.body.classList.remove('camera-active');
     unregisterOverlayClose('camera');
-    closeOverlay('camera');
+    removeOverlayFromStack('camera');
     setMode('queue');
   };
 
@@ -533,7 +534,7 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, cur
           <div className="fixed inset-0 z-[100] bg-black flex flex-col">
               {/* Top Bar */}
               <div className="absolute top-0 left-0 right-0 p-4 flex justify-between items-center z-10 bg-gradient-to-b from-black/50 to-transparent">
-                  <button onClick={() => { closeCameraOverlay(); closeOverlay('camera'); }} className="w-10 h-10 flex items-center justify-center bg-black/40 backdrop-blur-md rounded-full text-white active:scale-95 transition-transform">
+                  <button onClick={() => { if (queue.length > 0) { finishCameraSession(); } else { closeCameraOverlay(); closeOverlay('camera'); } }} className="w-10 h-10 flex items-center justify-center bg-black/40 backdrop-blur-md rounded-full text-white active:scale-95 transition-transform">
                       <X size={22} />
                   </button>
                   <div className="text-white font-medium flex items-center gap-2">
