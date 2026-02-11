@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { RefreshCw, Download, Search, FileText, Eye, AlertCircle, CheckCircle, X, Clock, Filter, XCircle, Calendar, Tag, ArrowLeftRight } from 'lucide-react';
 import { User, SefazNote, SefazDocZip, Category } from '../types';
-import { syncSefazNotes, getSefazNotes, saveSefazNote, getLastNSU, updateLastNSU, linkReceiptsToSefazNotes, getLinkedReceiptImages } from '../services/sefazService';
+import { syncSefazNotes, getSefazNotes, saveSefazNote, getLastNSU, updateLastNSU, linkReceiptsToSefazNotes, getLinkedReceiptImages, SefazApiError } from '../services/sefazService';
 import { generateDanfePDF, generateSefazReportPDF } from '../services/pdfService';
 import { clsx } from 'clsx';
 
@@ -251,7 +251,7 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categor
   const [lastNSU, setLastNSU] = useState('000000000000000');
   const [maxNSU, setMaxNSU] = useState('');
   const [lastSyncTime, setLastSyncTime] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<{ message: string; code: string } | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [viewingXml, setViewingXml] = useState<SefazNote | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -367,7 +367,7 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categor
       }
 
       if (result.cStat !== '138') {
-        setError(`SEFAZ retornou: ${result.cStat} - ${result.xMotivo}`);
+        setError({ message: `SEFAZ retornou: ${result.cStat} - ${result.xMotivo}`, code: 'sefaz_response' });
         setSyncing(false);
         return;
       }
@@ -421,7 +421,8 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categor
         console.error('Erro ao vincular notas:', linkErr);
       }
     } catch (err: any) {
-      setError(err.message || 'Erro ao sincronizar com SEFAZ.');
+      const errorCode = err instanceof SefazApiError ? err.errorCode : 'unknown';
+      setError({ message: err.message || 'Erro ao sincronizar com SEFAZ.', code: errorCode });
     } finally {
       setSyncing(false);
     }
@@ -628,13 +629,35 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categor
         </div>
       </div>
 
-      {error && (
-        <div className="bg-red-50 rounded-lg px-3 py-2 flex items-center gap-2">
-          <AlertCircle size={14} className="text-red-500 flex-shrink-0" />
-          <span className="text-xs text-red-700 flex-1">{error}</span>
-          <button onClick={() => setError(null)} className="text-red-400"><X size={12} /></button>
-        </div>
-      )}
+      {error && (() => {
+        const errorStyles: Record<string, { bg: string; border: string; icon: string; text: string; title: string; hint: string }> = {
+          certificate_error: { bg: 'bg-red-50', border: 'border-red-200', icon: 'text-red-600', text: 'text-red-800', title: 'Erro no Certificado Digital', hint: 'Verifique se o arquivo PFX e a senha estão corretos nas configurações.' },
+          certificate_expired: { bg: 'bg-orange-50', border: 'border-orange-200', icon: 'text-orange-600', text: 'text-orange-800', title: 'Certificado Vencido', hint: 'É necessário renovar o certificado digital A1 junto à autoridade certificadora.' },
+          sefaz_offline: { bg: 'bg-yellow-50', border: 'border-yellow-200', icon: 'text-yellow-600', text: 'text-yellow-800', title: 'SEFAZ Indisponível', hint: 'O servidor da SEFAZ pode estar em manutenção. Tente novamente mais tarde.' },
+          timeout: { bg: 'bg-yellow-50', border: 'border-yellow-200', icon: 'text-yellow-600', text: 'text-yellow-800', title: 'Tempo Esgotado', hint: 'A SEFAZ está demorando para responder. Tente novamente em alguns minutos.' },
+          ssl_error: { bg: 'bg-red-50', border: 'border-red-200', icon: 'text-red-600', text: 'text-red-800', title: 'Erro de Segurança (SSL)', hint: 'Pode haver incompatibilidade entre o certificado e o servidor da SEFAZ.' },
+          connection_reset: { bg: 'bg-yellow-50', border: 'border-yellow-200', icon: 'text-yellow-600', text: 'text-yellow-800', title: 'Conexão Interrompida', hint: 'A conexão foi encerrada inesperadamente. Tente novamente.' },
+          auth_error: { bg: 'bg-red-50', border: 'border-red-200', icon: 'text-red-600', text: 'text-red-800', title: 'Acesso Negado', hint: 'Verifique se o CNPJ e certificado estão autorizados na SEFAZ.' },
+          sefaz_response: { bg: 'bg-blue-50', border: 'border-blue-200', icon: 'text-blue-600', text: 'text-blue-800', title: 'Resposta da SEFAZ', hint: 'A SEFAZ retornou um status diferente do esperado.' },
+          unknown: { bg: 'bg-red-50', border: 'border-red-200', icon: 'text-red-600', text: 'text-red-800', title: 'Erro Inesperado', hint: 'Se o problema persistir, entre em contato com o suporte.' },
+        };
+        const style = errorStyles[error.code] || errorStyles.unknown;
+        const IconComponent = ['timeout', 'sefaz_offline', 'connection_reset'].includes(error.code) ? Clock : ['certificate_expired'].includes(error.code) ? XCircle : AlertCircle;
+
+        return (
+          <div className={`${style.bg} border ${style.border} rounded-xl px-3.5 py-3`}>
+            <div className="flex items-start gap-2.5">
+              <IconComponent size={16} className={`${style.icon} flex-shrink-0 mt-0.5`} />
+              <div className="flex-1 min-w-0">
+                <p className={`text-xs font-bold ${style.text}`}>{style.title}</p>
+                <p className={`text-[11px] ${style.text} mt-0.5 opacity-90`}>{error.message}</p>
+                <p className="text-[10px] text-gray-500 mt-1 italic">{style.hint}</p>
+              </div>
+              <button onClick={() => setError(null)} className={`${style.icon} opacity-60 hover:opacity-100`}><X size={14} /></button>
+            </div>
+          </div>
+        );
+      })()}
 
       {successMsg && (
         <div className="bg-green-50 rounded-lg px-3 py-2 flex items-center gap-2">

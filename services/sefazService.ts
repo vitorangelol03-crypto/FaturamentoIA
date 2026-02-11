@@ -1,6 +1,28 @@
 import { supabase } from '../services/supabaseClient';
 import { SefazNote, SefazSyncResult } from '../types';
 
+class SefazApiError extends Error {
+  errorCode: string;
+  constructor(message: string, errorCode: string = 'unknown') {
+    super(message);
+    this.errorCode = errorCode;
+    this.name = 'SefazApiError';
+  }
+}
+
+async function handleSefazResponse(response: Response): Promise<any> {
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new SefazApiError(
+      err.error || err.details || `Erro HTTP ${response.status}`,
+      err.errorCode || 'unknown'
+    );
+  }
+  return response.json();
+}
+
+export { SefazApiError };
+
 export async function syncSefazNotes(ultNSU: string, location: string = 'Caratinga'): Promise<SefazSyncResult> {
   const response = await fetch('/api/sefaz-monitor', {
     method: 'POST',
@@ -8,12 +30,7 @@ export async function syncSefazNotes(ultNSU: string, location: string = 'Caratin
     body: JSON.stringify({ action: 'sync', ultNSU, location }),
   });
 
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({}));
-    throw new Error(err.error || err.details || `Erro HTTP ${response.status}`);
-  }
-
-  return response.json();
+  return handleSefazResponse(response);
 }
 
 export async function consultarChave(chave: string, location: string = 'Caratinga'): Promise<SefazSyncResult> {
@@ -23,12 +40,7 @@ export async function consultarChave(chave: string, location: string = 'Carating
     body: JSON.stringify({ action: 'consultaChave', chave, location }),
   });
 
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({}));
-    throw new Error(err.error || err.details || `Erro HTTP ${response.status}`);
-  }
-
-  return response.json();
+  return handleSefazResponse(response);
 }
 
 export async function consultarNSU(nsu: string, location: string = 'Caratinga'): Promise<SefazSyncResult> {
@@ -38,12 +50,7 @@ export async function consultarNSU(nsu: string, location: string = 'Caratinga'):
     body: JSON.stringify({ action: 'consultaNSU', nsu, location }),
   });
 
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({}));
-    throw new Error(err.error || err.details || `Erro HTTP ${response.status}`);
-  }
-
-  return response.json();
+  return handleSefazResponse(response);
 }
 
 export async function getSefazNotes(location: string = 'Caratinga'): Promise<SefazNote[]> {
