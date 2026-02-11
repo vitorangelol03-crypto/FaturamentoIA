@@ -1,9 +1,27 @@
 
 import '../constants';
 
-export async function extractReceiptData(base64Image: string, mimeType: string = 'image/jpeg') {
+export interface ExtractionResult {
+  readable: boolean;
+  establishment?: string;
+  date?: string;
+  total_amount?: number;
+  cnpj?: string;
+  receipt_number?: string;
+  payment_method?: string;
+  suggested_category?: string;
+  access_key?: string;
+  items?: Array<{
+    name: string;
+    quantity: number;
+    unitPrice: number;
+    totalPrice: number;
+  }>;
+  error?: string;
+}
+
+export async function extractReceiptData(base64Image: string, mimeType: string = 'image/jpeg'): Promise<ExtractionResult> {
   try {
-    // Remove prefixo base64 se existir
     const cleanBase64 = base64Image.includes(",") 
       ? base64Image.split(",")[1] 
       : base64Image;
@@ -21,21 +39,38 @@ export async function extractReceiptData(base64Image: string, mimeType: string =
 
     if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.details || errorData.error || `Erro HTTP ${response.status}`);
+        return {
+            readable: false,
+            error: errorData.details || errorData.error || `Erro HTTP ${response.status}`
+        };
     }
 
-    return await response.json();
+    const data = await response.json();
+
+    if (data.readable === false) {
+      return {
+        readable: false,
+        error: data.error || "Imagem não é uma nota fiscal legível"
+      };
+    }
+
+    if (!data.establishment || data.establishment.trim() === '' || data.total_amount === undefined || data.total_amount === 0) {
+      return {
+        readable: false,
+        error: "Não foi possível identificar os dados da nota fiscal"
+      };
+    }
+
+    return {
+      readable: true,
+      ...data
+    };
 
   } catch (error: any) {
     console.error("Erro no serviço de extração:", error);
-    
-    // Fallback amigável para a interface não travar
     return {
-        establishment: "Erro na Leitura (Tente Novamente)",
-        date: new Date().toISOString().split('T')[0],
-        total_amount: 0,
-        items: [],
-        suggested_category: "Outros"
+      readable: false,
+      error: error.message || "Falha na conexão com o serviço de extração"
     };
   }
 }

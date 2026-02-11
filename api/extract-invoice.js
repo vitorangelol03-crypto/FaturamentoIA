@@ -1,8 +1,68 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
 
+const VALID_CATEGORIES = [
+  "Alimentação",
+  "Transporte",
+  "Saúde",
+  "Moradia",
+  "Lazer",
+  "Educação",
+  "Vestuário",
+  "Tecnologia",
+  "Serviços",
+  "Agropecuária",
+  "Outros"
+];
+
+const EXTRACTION_PROMPT = `Você é um especialista em leitura de notas fiscais brasileiras (NFC-e, NF-e, cupons fiscais).
+
+TAREFA: Extraia TODOS os dados desta nota fiscal com máxima precisão.
+
+REGRAS DE CATEGORIZAÇÃO (IMPORTANTE):
+- A categoria deve ser baseada nos ITENS COMPRADOS, NÃO no nome do estabelecimento.
+- Exemplos:
+  • Posto de combustível vendendo COMBUSTÍVEL (gasolina, etanol, diesel) → "Transporte"
+  • Posto de combustível vendendo FLUIDO DE FREIO, óleo, peças → "Transporte"
+  • Posto de combustível vendendo ÁGUA, refrigerante, salgado → "Alimentação"
+  • Supermercado vendendo ALIMENTOS → "Alimentação"
+  • Supermercado vendendo PRODUTOS DE LIMPEZA → "Moradia"
+  • Supermercado vendendo RAÇÃO ANIMAL → "Agropecuária"
+  • Farmácia vendendo MEDICAMENTOS → "Saúde"
+  • Farmácia vendendo CHOCOLATES, BISCOITOS → "Alimentação"
+  • Loja vendendo CELULAR, COMPUTADOR → "Tecnologia"
+  • Loja vendendo ROUPAS, CALÇADOS → "Vestuário"
+  • Oficina mecânica, borracharia, autopeças → "Transporte"
+  • Materiais de construção → "Moradia"
+  • Insumos agrícolas, fertilizantes, sementes → "Agropecuária"
+
+CATEGORIAS VÁLIDAS: ${VALID_CATEGORIES.join(", ")}
+
+Se a nota tiver itens de categorias diferentes, escolha a categoria do item de MAIOR VALOR.
+
+REGRAS DE EXTRAÇÃO:
+1. ESTABLISHMENT: Nome comercial/fantasia do estabelecimento (não a razão social completa, a menos que seja o único disponível)
+2. DATE: Data da emissão no formato YYYY-MM-DD
+3. TOTAL_AMOUNT: Valor TOTAL da nota (campo "Valor total" ou "TOTAL R$"), apenas o número
+4. CNPJ: CNPJ do EMITENTE (vendedor), apenas números sem pontuação (14 dígitos)
+5. ACCESS_KEY: Chave de acesso da NF-e com EXATAMENTE 44 dígitos numéricos. Geralmente aparece:
+   - No rodapé da nota
+   - Próximo ao QR Code
+   - Após "Chave de Acesso" ou "Consulte pela Chave de Acesso"
+   - Pode estar separada em grupos de 4 dígitos
+   IMPORTANTE: Junte todos os dígitos em uma string contínua de 44 números. Se não encontrar exatamente 44 dígitos, retorne string vazia.
+6. ITEMS: Lista de produtos/serviços com nome, quantidade, preço unitário e preço total
+7. PAYMENT_METHOD: Forma de pagamento (Dinheiro, Cartão de Crédito, Cartão de Débito, PIX, etc.)
+8. RECEIPT_NUMBER: Número da nota fiscal
+
+VALIDAÇÃO DA IMAGEM:
+- Se a imagem NÃO for uma nota fiscal, cupom fiscal ou recibo, retorne readable = false
+- Se a imagem estiver muito borrada, cortada ou ilegível, retorne readable = false
+- Se conseguir extrair pelo menos estabelecimento + valor total, retorne readable = true
+
+Retorne APENAS o JSON estruturado.`;
+
 export default async function handler(req, res) {
-  // Configuração de CORS para Vercel
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
@@ -28,21 +88,20 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Inicialização correta do SDK
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = new GoogleGenAI({ apiKey });
 
-    // Esquema de resposta estruturado
     const responseSchema = {
       type: Type.OBJECT,
       properties: {
+        readable: { type: Type.BOOLEAN, description: "true se a imagem é uma nota fiscal legível, false se não for nota fiscal ou estiver ilegível" },
         establishment: { type: Type.STRING, description: "Nome do estabelecimento" },
         date: { type: Type.STRING, description: "Data no formato YYYY-MM-DD" },
         total_amount: { type: Type.NUMBER, description: "Valor total numérico" },
-        cnpj: { type: Type.STRING, description: "CNPJ apenas números" },
-        receipt_number: { type: Type.STRING },
-        payment_method: { type: Type.STRING },
-        suggested_category: { type: Type.STRING },
-        access_key: { type: Type.STRING, description: "Chave de acesso da NF-e com 44 dígitos numéricos, geralmente encontrada no rodapé ou QR code da nota" },
+        cnpj: { type: Type.STRING, description: "CNPJ do emitente, apenas 14 dígitos numéricos" },
+        receipt_number: { type: Type.STRING, description: "Número da nota fiscal" },
+        payment_method: { type: Type.STRING, description: "Forma de pagamento" },
+        suggested_category: { type: Type.STRING, description: `Categoria baseada nos ITENS comprados. Valores: ${VALID_CATEGORIES.join(", ")}` },
+        access_key: { type: Type.STRING, description: "Chave de acesso NF-e com exatamente 44 dígitos numéricos contínuos, ou string vazia se não encontrada" },
         items: {
           type: Type.ARRAY,
           items: {
@@ -56,16 +115,15 @@ export default async function handler(req, res) {
           }
         }
       },
-      required: ["establishment", "date", "total_amount"]
+      required: ["readable", "establishment", "date", "total_amount", "suggested_category"]
     };
 
-    // Usando gemini-flash-latest para garantir compatibilidade com a versão free
     const result = await ai.models.generateContent({
-      model: 'gemini-flash-latest',
+      model: 'gemini-2.0-flash',
       contents: [
         {
           parts: [
-            { text: "Extraia os dados desta nota fiscal brasileira. Procure também a chave de acesso (44 dígitos numéricos geralmente no rodapé ou próximo ao QR code). Retorne apenas o JSON puro." },
+            { text: EXTRACTION_PROMPT },
             {
               inlineData: {
                 mimeType: mimeType || 'image/jpeg',
@@ -85,20 +143,33 @@ export default async function handler(req, res) {
     const resultText = result.text;
     
     if (!resultText) {
-      throw new Error("Resposta vazia da IA.");
+      return res.status(200).json({ readable: false, error: "Resposta vazia da IA" });
     }
 
-    // Limpeza de segurança caso o modelo retorne blocos de código
     let cleanJson = resultText.trim();
     if (cleanJson.startsWith('```')) {
       cleanJson = cleanJson.replace(/^```[a-z]*\n/i, '').replace(/\n```$/g, '').trim();
     }
 
-    return res.status(200).json(JSON.parse(cleanJson));
+    const parsed = JSON.parse(cleanJson);
+
+    if (parsed.access_key) {
+      parsed.access_key = parsed.access_key.replace(/\D/g, '');
+      if (parsed.access_key.length !== 44) {
+        parsed.access_key = '';
+      }
+    }
+
+    if (!VALID_CATEGORIES.includes(parsed.suggested_category)) {
+      parsed.suggested_category = 'Outros';
+    }
+
+    return res.status(200).json(parsed);
 
   } catch (error) {
     console.error("Erro na API de extração:", error);
     return res.status(500).json({ 
+      readable: false,
       error: 'Erro interno no processamento', 
       details: error.message 
     });

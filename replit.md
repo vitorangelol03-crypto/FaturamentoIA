@@ -72,6 +72,7 @@ A smart receipt/invoice management application built with React and TypeScript. 
 - Camera has an X close button in addition to "Concluir" (finish) button
 
 ## Recent Changes
+- 2026-02-11: Upgraded to Gemini 2.0 Flash model, improved prompt with item-based categorization (not establishment-based), added readability validation with auto-removal of unreadable photos, real-time camera processing with toast feedback
 - 2026-02-11: Added camera close button (X) and centralized History API back button handling for mobile navigation
 - 2026-02-11: Added per-admin SEFAZ access control (sefaz_access field on users table) with location switcher in Monitor
 - 2026-02-11: Made SEFAZ note cards fully clickable, moved PDF download to details modal

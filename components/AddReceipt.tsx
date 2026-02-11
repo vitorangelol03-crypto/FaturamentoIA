@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Camera, Upload, X, CheckCircle, XCircle, Loader2, Play, Pause, AlertTriangle, FileText, ArrowRight, Save, Edit2, RotateCcw, Image as ImageIcon, Zap, Check, MapPin } from 'lucide-react';
-import { extractReceiptData } from '../services/geminiService';
+import { extractReceiptData, ExtractionResult } from '../services/geminiService';
 import { Category, User } from '../types';
 import { supabase } from '../services/supabaseClient';
 import { clsx } from 'clsx';
@@ -45,6 +45,8 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, cur
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const [flashEffect, setFlashEffect] = useState(false);
   const [permissionError, setPermissionError] = useState(false);
+  const [cameraToast, setCameraToast] = useState<{ type: 'success' | 'error' | 'processing'; message: string } | null>(null);
+  const cameraToastTimer = useRef<NodeJS.Timeout | null>(null);
 
   // Edit State
   const [editingItem, setEditingItem] = useState<QueueItem | null>(null);
@@ -55,6 +57,14 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, cur
 
   // Helper
   const isAdmin = currentUser.role === 'admin' || currentUser.username === 'zoork22';
+
+  const showCameraToast = (type: 'success' | 'error' | 'processing', message: string, duration: number = 3000) => {
+    if (cameraToastTimer.current) clearTimeout(cameraToastTimer.current);
+    setCameraToast({ type, message });
+    if (type !== 'processing') {
+      cameraToastTimer.current = setTimeout(() => setCameraToast(null), duration);
+    }
+  };
 
   // Stats
   const processedCount = queue.filter(i => i.status === 'success').length;
@@ -169,7 +179,10 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, cur
     document.body.classList.remove('camera-active');
     unregisterOverlayClose('camera');
     removeOverlayFromStack('camera');
-    setMode('queue');
+    setCameraToast(null);
+    if (cameraToastTimer.current) clearTimeout(cameraToastTimer.current);
+    const allDone = queue.length > 0 && queue.every(i => i.status === 'success' || i.status === 'error');
+    setMode(allDone ? 'summary' : 'queue');
   };
 
   // --- FILE HANDLING ---
@@ -260,6 +273,14 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, cur
     setQueue(prev => prev.map(item => item.id === id ? { ...item, ...updates } : item));
   };
 
+  const removeItem = (id: string) => {
+    setQueue(prev => {
+      const item = prev.find(i => i.id === id);
+      if (item?.imagePreview) URL.revokeObjectURL(item.imagePreview);
+      return prev.filter(i => i.id !== id);
+    });
+  };
+
   const processNextInQueue = async () => {
     const nextItem = queue.find(i => i.status === 'waiting');
     if (!nextItem) return;
@@ -267,17 +288,26 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, cur
     setIsProcessing(true);
     updateItem(nextItem.id, { status: 'processing' });
 
+    if (mode === 'camera') {
+      showCameraToast('processing', 'Analisando nota fiscal...');
+    }
+
     try {
       const base64 = await fileToBase64(nextItem.file);
       const rawData = await extractReceiptData(base64, nextItem.file.type);
+
+      if (!rawData.readable) {
+        removeItem(nextItem.id);
+        if (mode === 'camera') {
+          showCameraToast('error', 'Foto ilegível — tente novamente com melhor enquadramento', 4000);
+        }
+        setIsProcessing(false);
+        return;
+      }
       
-      // Limpa CNPJ para garantir que apenas números sejam salvos
       const extractedCNPJ = rawData.cnpj ? rawData.cnpj.replace(/\D/g, '') : '';
       const cleanRequiredCNPJ = REQUIRED_CNPJ.replace(/\D/g, '');
 
-      // LOGICA DE LOCALIZAÇÃO:
-      // Se for admin, tenta adivinhar pelo CNPJ.
-      // Se NÃO for admin, FORÇA a localização do usuário.
       let determinedLocation = 'Ponte Nova'; 
       
       if (isAdmin) {
@@ -306,7 +336,7 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, cur
         establishment: rawData.establishment || 'Desconhecido',
         date: rawData.date || new Date().toISOString(),
         total_amount: rawData.total_amount || 0,
-        cnpj: extractedCNPJ, // Store numbers only for consistency
+        cnpj: extractedCNPJ,
         receipt_number: rawData.receipt_number,
         payment_method: rawData.payment_method,
         category_id: matchedCategory.id,
@@ -333,13 +363,22 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, cur
           dbId: insertedData.id 
       });
 
+      if (mode === 'camera') {
+        showCameraToast('success', `${rawData.establishment} — R$ ${rawData.total_amount?.toFixed(2)} salvo!`);
+      }
+
     } catch (error: any) {
       console.error(`Erro ao processar ${nextItem.file.name}:`, error);
-      updateItem(nextItem.id, { 
-          status: 'error', 
-          errorMsg: error.message || "Falha desconhecida",
-          establishment: "Erro no Processamento" 
-      });
+      if (mode === 'camera') {
+        removeItem(nextItem.id);
+        showCameraToast('error', 'Erro ao processar — tente tirar outra foto', 4000);
+      } else {
+        updateItem(nextItem.id, { 
+            status: 'error', 
+            errorMsg: error.message || "Falha desconhecida",
+            establishment: "Erro no Processamento" 
+        });
+      }
     } finally {
       setIsProcessing(false);
     }
@@ -539,7 +578,16 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, cur
                   </button>
                   <div className="text-white font-medium flex items-center gap-2">
                        <span className="bg-brand-600 px-2 py-0.5 rounded text-xs">Modo Burst</span>
-                       {queue.length > 0 && <span>{queue.length} capturadas</span>}
+                       {queue.length > 0 && (
+                         <span className="flex items-center gap-1">
+                           {queue.filter(i => i.status === 'success').length > 0 && (
+                             <span className="text-green-400">{queue.filter(i => i.status === 'success').length} salvas</span>
+                           )}
+                           {queue.some(i => i.status === 'processing' || i.status === 'saving' || i.status === 'waiting') && (
+                             <Loader2 className="animate-spin text-white/70" size={14} />
+                           )}
+                         </span>
+                       )}
                   </div>
                   <button onClick={finishCameraSession} className="bg-white/20 backdrop-blur-md text-white px-4 py-2 rounded-full text-sm font-semibold">
                       Concluir
@@ -567,6 +615,21 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, cur
 
                    {/* Flash Effect */}
                    <div className={clsx("absolute inset-0 bg-white pointer-events-none transition-opacity duration-150", flashEffect ? "opacity-80" : "opacity-0")}></div>
+
+                   {/* Camera Toast */}
+                   {cameraToast && (
+                     <div className={clsx(
+                       "absolute bottom-4 left-4 right-4 p-3 rounded-xl backdrop-blur-md flex items-center gap-3 z-20 transition-all animate-fade-in shadow-lg",
+                       cameraToast.type === 'success' && "bg-green-500/90 text-white",
+                       cameraToast.type === 'error' && "bg-red-500/90 text-white",
+                       cameraToast.type === 'processing' && "bg-white/20 text-white"
+                     )}>
+                       {cameraToast.type === 'processing' && <Loader2 className="animate-spin shrink-0" size={18} />}
+                       {cameraToast.type === 'success' && <CheckCircle className="shrink-0" size={18} />}
+                       {cameraToast.type === 'error' && <AlertTriangle className="shrink-0" size={18} />}
+                       <span className="text-sm font-medium leading-tight">{cameraToast.message}</span>
+                     </div>
+                   )}
               </div>
 
               {/* Bottom Bar (Shutter) */}
@@ -577,7 +640,13 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, cur
                           <div className="w-12 h-12 rounded-lg border-2 border-white overflow-hidden relative">
                               <img src={queue[queue.length-1].imagePreview} className="w-full h-full object-cover" />
                               <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
-                                  <span className="text-white text-xs font-bold">{queue.length}</span>
+                                {queue[queue.length-1].status === 'processing' || queue[queue.length-1].status === 'saving' ? (
+                                  <Loader2 className="animate-spin text-white" size={16} />
+                                ) : queue[queue.length-1].status === 'success' ? (
+                                  <CheckCircle className="text-green-400" size={16} />
+                                ) : (
+                                  <span className="text-white text-xs font-bold">{queue.filter(i => i.status === 'success').length || queue.length}</span>
+                                )}
                               </div>
                           </div>
                       )}
