@@ -253,6 +253,8 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categor
   const [lastSyncTime, setLastSyncTime] = useState<string | null>(null);
   const [error, setError] = useState<{ message: string; code: string } | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [generatingReport, setGeneratingReport] = useState(false);
+  const [generatingDanfe, setGeneratingDanfe] = useState(false);
   const [viewingXml, setViewingXml] = useState<SefazNote | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [periodFilter, setPeriodFilter] = useState<PeriodOption>('current_month');
@@ -525,31 +527,41 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categor
       alert('Nenhuma nota para incluir no relatório.');
       return;
     }
-    const receiptIds = filteredNotes
-      .filter(n => n.receipt_id)
-      .map(n => n.receipt_id!);
-    let linkedImages: Map<string, string> | undefined;
-    if (receiptIds.length > 0) {
-      try {
-        linkedImages = await getLinkedReceiptImages(receiptIds);
-      } catch (e) {
-        console.error('Erro ao buscar imagens dos recibos:', e);
+    setGeneratingReport(true);
+    try {
+      const receiptIds = filteredNotes
+        .filter(n => n.receipt_id)
+        .map(n => n.receipt_id!);
+      let linkedImages: Map<string, string> | undefined;
+      if (receiptIds.length > 0) {
+        try {
+          linkedImages = await getLinkedReceiptImages(receiptIds);
+        } catch (e) {
+          console.error('Erro ao buscar imagens dos recibos:', e);
+        }
       }
+      await generateSefazReportPDF(filteredNotes, categories, activeLocation, getPeriodLabel(), categorySummary, linkedImages);
+    } finally {
+      setGeneratingReport(false);
     }
-    generateSefazReportPDF(filteredNotes, categories, activeLocation, getPeriodLabel(), categorySummary, linkedImages);
   };
 
   const handleDownloadSinglePDF = async (note: SefazNote) => {
-    let imageUrl: string | undefined;
-    if (note.receipt_id) {
-      try {
-        const images = await getLinkedReceiptImages([note.receipt_id]);
-        imageUrl = images.get(note.receipt_id);
-      } catch (e) {
-        console.error('Erro ao buscar imagem do recibo vinculado:', e);
+    setGeneratingDanfe(true);
+    try {
+      let imageUrl: string | undefined;
+      if (note.receipt_id) {
+        try {
+          const images = await getLinkedReceiptImages([note.receipt_id]);
+          imageUrl = images.get(note.receipt_id);
+        } catch (e) {
+          console.error('Erro ao buscar imagem do recibo vinculado:', e);
+        }
       }
+      await generateDanfePDF(note, imageUrl);
+    } finally {
+      setGeneratingDanfe(false);
     }
-    generateDanfePDF(note, imageUrl);
   };
 
   const getStatusBadge = (status?: string) => {
@@ -605,16 +617,16 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categor
           )}
           <button
             onClick={handleDownloadReport}
-            disabled={filteredNotes.length === 0}
+            disabled={filteredNotes.length === 0 || generatingReport}
             className={clsx(
               "p-2 rounded-lg transition-all",
-              filteredNotes.length === 0
+              filteredNotes.length === 0 || generatingReport
                 ? "text-gray-300 cursor-not-allowed"
                 : "text-brand-600 hover:bg-brand-50 active:scale-95"
             )}
-            title="Baixar relatório PDF"
+            title={generatingReport ? "Gerando relatório..." : "Baixar relatório PDF"}
           >
-            <Download size={18} />
+            {generatingReport ? <RefreshCw size={18} className="animate-spin" /> : <Download size={18} />}
           </button>
           <button
             onClick={handleSync}
@@ -904,9 +916,19 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categor
             <div className="p-4 border-t flex gap-2">
               <button
                 onClick={() => { handleDownloadSinglePDF(viewingXml); }}
-                className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-brand-600 text-white rounded-xl text-sm font-semibold hover:bg-brand-700 transition-colors"
+                disabled={generatingDanfe}
+                className={clsx(
+                  "flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-semibold transition-colors",
+                  generatingDanfe
+                    ? "bg-brand-400 text-white cursor-not-allowed"
+                    : "bg-brand-600 text-white hover:bg-brand-700"
+                )}
               >
-                <Download size={14} /> Baixar PDF
+                {generatingDanfe ? (
+                  <><RefreshCw size={14} className="animate-spin" /> Gerando PDF...</>
+                ) : (
+                  <><Download size={14} /> Baixar PDF</>
+                )}
               </button>
               <button
                 onClick={() => setViewingXml(null)}
