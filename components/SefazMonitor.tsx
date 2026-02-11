@@ -13,28 +13,233 @@ interface SefazMonitorProps {
 type PeriodOption = 'all' | 'current_month' | 'last_month' | 'custom';
 
 const CATEGORY_KEYWORDS: Record<string, string[]> = {
-  'Alimentação': ['supermercado', 'mercado', 'mercearia', 'açougue', 'padaria', 'restaurante', 'lanchonete', 'pizzaria', 'bar ', 'food', 'aliment', 'hortifruti', 'frutas', 'verduras', 'cereais', 'bebidas', 'distribuidora de bebidas', 'frigorifico', 'laticinio', 'doces', 'confeitaria', 'sorvete', 'atacado', 'atacadão', 'assai', 'bretas', 'epa', 'abc supermercado', 'bahamas', 'mineirão'],
-  'Transporte': ['combustivel', 'combustível', 'posto', 'gasolina', 'diesel', 'etanol', 'lubrificante', 'auto peças', 'autopeças', 'pneu', 'borracharia', 'oficina', 'mecanica', 'mecânica', 'estacionamento', 'pedagio', 'pedágio', 'uber', 'transporte', 'frete', 'shell', 'ipiranga', 'petrobrás', 'petrobras', 'br distribuidora', 'ale combustiveis'],
-  'Saúde': ['farmacia', 'farmácia', 'drogaria', 'hospital', 'clinica', 'clínica', 'laboratorio', 'laboratório', 'medic', 'saude', 'saúde', 'dental', 'odonto', 'otica', 'óptica', 'droga', 'farma'],
-  'Moradia': ['material de construção', 'construcao', 'construção', 'ferragem', 'ferragista', 'elétrica', 'eletrica', 'hidraulica', 'hidráulica', 'tintas', 'madeira', 'cimento', 'telha', 'imobiliaria', 'aluguel', 'condominio', 'energia', 'agua', 'água', 'gás', 'gas', 'leroy', 'telhanorte'],
-  'Lazer': ['entretenimento', 'cinema', 'teatro', 'parque', 'hotel', 'pousada', 'turismo', 'viagem', 'resort', 'clube', 'academia', 'esporte', 'livraria', 'livro', 'brinquedo', 'game', 'jogo'],
-  'Educação': ['escola', 'faculdade', 'universidade', 'curso', 'papelaria', 'livraria', 'educacao', 'educação', 'ensino', 'treinamento', 'apostila', 'material escolar'],
-  'Vestuário': ['roupa', 'vestuario', 'vestuário', 'calcado', 'calçado', 'sapato', 'tenis', 'tênis', 'moda', 'confeccao', 'confecção', 'textil', 'têxtil', 'loja de roupas', 'magazine', 'renner', 'riachuelo', 'cea'],
-  'Outros': [],
+  'Alimentação': [
+    'supermercado', 'supermerc', 'mercado', 'mercearia', 'mercear', 'mini mercado', 'minimercado',
+    'açougue', 'acougue', 'casa de carnes', 'carnes', 'frigorifico', 'frigorific',
+    'padaria', 'panificadora', 'panificacao', 'panificação', 'confeitaria', 'doceria', 'doces',
+    'restaurante', 'rest.', 'lanchonete', 'lanch', 'pizzaria', 'pizza', 'hamburgueria', 'burger',
+    'churrascaria', 'churrasc', 'sushi', 'japonesa', 'comida', 'refeicao', 'refeição',
+    'food', 'aliment', 'alimentacao', 'alimentação', 'generos alimenticios',
+    'hortifruti', 'hortifrutigranjeiro', 'frutas', 'verduras', 'legumes', 'sacolao', 'sacolão',
+    'cereais', 'cerealist', 'grãos', 'graos',
+    'bebidas', 'distribuidora de bebidas', 'dist. de bebidas', 'distrib. bebidas', 'adega', 'cervejaria',
+    'laticinio', 'lacticinio', 'laticinios', 'leite', 'queijo',
+    'sorvete', 'sorveteria', 'gelato', 'acai', 'açaí',
+    'atacado', 'atacadão', 'atacadao', 'atacadista', 'assai', 'assaí', 'makro', 'macro',
+    'bretas', 'epa', 'bahamas', 'mineirão', 'mineirao', 'superbom', 'supernosso',
+    'dia %', 'pao de acucar', 'pão de açúcar', 'carrefour', 'extra', 'big', 'maxxi',
+    'bar e ', 'bar do ', 'bar da ', 'boteco', 'cantina', 'cafeteria', 'cafe', 'café',
+    'rotisserie', 'emporio', 'empório', 'delicatessen', 'delicat', 'quitanda', 'armazem', 'armazém',
+    'frios', 'embutidos', 'salgados', 'pastel', 'pastelaria', 'tapioca', 'coxinha',
+    'nutricao', 'nutrição', 'natural', 'naturais', 'diet', 'integral', 'organico', 'orgânico',
+    'biscoito', 'chocolate', 'bomboniere', 'guloseima', 'bala',
+    'agua mineral', 'água mineral', 'engarrafamento',
+    'prod. alimenticio', 'industria de alimento', 'ind. aliment',
+    'cesta basica', 'cesta básica',
+  ],
+  'Transporte': [
+    'combustivel', 'combustível', 'combustiveis', 'combustíveis',
+    'posto', 'posto de', 'auto posto', 'rede de postos',
+    'gasolina', 'diesel', 'etanol', 'gnv', 'glp',
+    'lubrificante', 'lubrific', 'oleo', 'óleo', 'filtro',
+    'auto peças', 'autopeças', 'auto pecas', 'autopecas', 'pecas automotivas', 'peças automotivas',
+    'pneu', 'pneus', 'borracharia', 'borracheiro', 'recauchutagem', 'recapagem',
+    'oficina', 'mecanica', 'mecânica', 'funilaria', 'lanternagem', 'pintura automotiva',
+    'estacionamento', 'parking', 'garagem',
+    'pedagio', 'pedágio', 'rodovia',
+    'uber', 'transporte', 'frete', 'mudanca', 'mudança', 'transportadora', 'logistica', 'logística',
+    'shell', 'ipiranga', 'petrobrás', 'petrobras', 'br distribuidora',
+    'ale combustiveis', 'ale combustíveis', 'raizen', 'raízen',
+    'lava jato', 'lavacao', 'lavação', 'lava car', 'lava rapido', 'lava rápido',
+    'retifica', 'retífica', 'radiador', 'escapamento', 'suspensao', 'suspensão', 'freio',
+    'automotivo', 'automotiva', 'veicular', 'automovel', 'automóvel',
+    'moto peças', 'moto pecas', 'motopecas', 'motopeças',
+    'concessionaria', 'concessionária', 'revenda de veiculos', 'revenda de veículos',
+    'locadora', 'rent a car', 'aluguel de veiculos', 'aluguel de veículos',
+    'bateria', 'baterias', 'acumulador',
+    'seguro auto', 'seguro veicular',
+    'despachante', 'detran', 'licenciamento',
+  ],
+  'Saúde': [
+    'farmacia', 'farmácia', 'farma', 'pharma',
+    'drogaria', 'droga', 'drog.', 'drogasil', 'drogaraia', 'droga raia', 'pacheco', 'venancio',
+    'hospital', 'hosp.', 'santa casa', 'pronto socorro',
+    'clinica', 'clínica', 'clin.', 'consultorio', 'consultório',
+    'laboratorio', 'laboratório', 'lab.', 'analises clinicas', 'análises clínicas', 'exame',
+    'medic', 'medicina', 'médic',
+    'saude', 'saúde', 'wellness',
+    'dental', 'odonto', 'odontologia', 'dentista', 'ortodont', 'implante',
+    'otica', 'óptica', 'optica', 'ótica', 'lente', 'oculos', 'óculos',
+    'fisioterapia', 'fisio', 'pilates', 'rpg',
+    'psicolog', 'terapia', 'terapeut',
+    'nutri', 'nutricionista',
+    'ortopedia', 'ortoped', 'protese', 'prótese',
+    'veterinario', 'veterinária', 'vet.', 'pet shop', 'petshop', 'pet center', 'clinica vet',
+    'perfumaria', 'cosmetico', 'cosmético', 'higiene', 'beleza', 'estetica', 'estética',
+    'manipulacao', 'manipulação', 'homeopatia',
+    'material hospitalar', 'cirurgico', 'cirúrgico', 'descartaveis', 'descartáveis',
+    'equipamento medico', 'equipamento médico', 'aparelho auditivo',
+    'plano de saude', 'plano de saúde', 'unimed', 'amil', 'sulamerica',
+  ],
+  'Moradia': [
+    'material de construção', 'material de construcao', 'mat. const', 'mat const',
+    'construcao', 'construção', 'construtora',
+    'ferragem', 'ferragista', 'ferragens', 'parafuso', 'ferreteria',
+    'elétrica', 'eletrica', 'eletric', 'fio', 'cabo', 'disjuntor', 'tomada',
+    'hidraulica', 'hidráulica', 'hidrául', 'encanamento', 'cano', 'tubo',
+    'tintas', 'tinta', 'pintura', 'verniz', 'suvinil', 'coral', 'lukscolor',
+    'madeira', 'madeireira', 'serraria', 'compensado', 'mdf',
+    'cimento', 'argamassa', 'concreto', 'areia', 'brita', 'pedra', 'cal',
+    'telha', 'telhado', 'cobertura', 'calha',
+    'ceramica', 'cerâmica', 'piso', 'revestimento', 'azulejo', 'porcelanato',
+    'vidracaria', 'vidraçaria', 'vidro', 'espelho', 'box',
+    'serralheria', 'metalurgica', 'metalúrgica', 'solda', 'portao', 'portão', 'grade',
+    'imobiliaria', 'imobiliária', 'aluguel', 'condominio', 'condomínio',
+    'energia', 'cemig', 'eletropaulo', 'copel', 'celpe', 'light',
+    'agua', 'água', 'saneamento', 'copasa', 'sabesp',
+    'gás', 'gas', 'gas de cozinha', 'ultragaz', 'liquigas', 'nacional gas',
+    'leroy', 'leroy merlin', 'telhanorte', 'c&c', 'tumelero', 'cassol',
+    'moveis', 'móveis', 'mobilia', 'mobília', 'colchao', 'colchão',
+    'eletrodomestico', 'eletrodoméstico', 'geladeira', 'fogao', 'fogão', 'microondas',
+    'decoracao', 'decoração', 'decor', 'cortina', 'persiana', 'tapete',
+    'limpeza', 'produto de limpeza', 'detergente', 'desinfetante', 'vassoura',
+    'jardim', 'jardinagem', 'paisagismo', 'planta', 'flores', 'floricultura',
+    'dedetizacao', 'dedetização', 'controle de pragas',
+    'chaveiro', 'fechadura', 'cadeado',
+    'impermeabilizacao', 'impermeabilização',
+  ],
+  'Lazer': [
+    'entretenimento', 'diversao', 'diversão',
+    'cinema', 'teatro', 'show', 'ingresso', 'evento',
+    'parque', 'zoologico', 'zoológico', 'aquario', 'aquário',
+    'hotel', 'pousada', 'hostel', 'hospedagem', 'resort', 'airbnb',
+    'turismo', 'viagem', 'agencia de viagem', 'agência de viagem', 'excursao', 'excursão',
+    'clube', 'associacao', 'associação', 'recreacao', 'recreação',
+    'academia', 'fitness', 'crossfit', 'musculacao', 'musculação', 'natacao', 'natação',
+    'esporte', 'esportivo', 'decathlon', 'centauro', 'netshoes',
+    'brinquedo', 'brinquedos', 'toy', 'game', 'jogo', 'jogos',
+    'instrumento musical', 'musica', 'música', 'violao', 'violão', 'guitarra',
+    'camping', 'pesca', 'aventura', 'trilha',
+    'streaming', 'netflix', 'spotify', 'assinatura digital',
+    'bar e rest', 'happy hour', 'balada', 'casa noturna',
+  ],
+  'Educação': [
+    'escola', 'colegio', 'colégio', 'inst. educ', 'instituicao de ensino', 'instituição de ensino',
+    'faculdade', 'universidade', 'univ.', 'centro universitario', 'centro universitário',
+    'curso', 'cursos', 'treinamento', 'capacitacao', 'capacitação',
+    'papelaria', 'papel', 'caderno', 'caneta', 'material escolar',
+    'livraria', 'livro', 'livros', 'editora', 'grafica', 'gráfica', 'impressao', 'impressão',
+    'educacao', 'educação', 'ensino', 'pedagogia',
+    'apostila', 'didatico', 'didático',
+    'creche', 'berçario', 'bercario', 'jardim de infancia', 'jardim de infância',
+    'auto escola', 'autoescola', 'cfc', 'centro de formacao', 'centro de formação',
+    'idioma', 'lingua', 'língua', 'ingles', 'inglês', 'espanhol',
+    'informatica', 'informática', 'computacao', 'computação', 'programacao', 'programação',
+    'xerox', 'copiadora', 'reprografia', 'encadernacao', 'encadernação',
+  ],
+  'Vestuário': [
+    'roupa', 'roupas', 'vestuario', 'vestuário', 'vest.',
+    'calcado', 'calçado', 'calçados', 'calcados', 'sapato', 'sapatos', 'sandalia', 'sandália',
+    'tenis', 'tênis', 'bota', 'botas', 'sapataria',
+    'moda', 'modas', 'fashion', 'boutique',
+    'confeccao', 'confecção', 'confeccoes', 'confecções', 'costura', 'alfaiate', 'atelier', 'ateliê',
+    'textil', 'têxtil', 'tecido', 'tecidos', 'aviamento', 'armarinho', 'retrosaria',
+    'magazine', 'renner', 'riachuelo', 'cea', 'c&a', 'marisa', 'hering', 'zara',
+    'loja de roupas', 'lojas de roupa', 'malha', 'malhas', 'camiseta', 'camisaria',
+    'jeans', 'calcas', 'calças',
+    'intima', 'íntima', 'lingerie', 'meia', 'meias', 'cueca', 'pijama',
+    'esportivo', 'uniforme', 'uniformes', 'fardamento',
+    'relojoaria', 'relogio', 'relógio', 'joalheria', 'joia', 'jóia', 'bijuteria', 'bijoux',
+    'acessorio', 'acessório', 'bolsa', 'bolsas', 'cinto', 'carteira',
+    'otica', 'ótica',
+    'lavanderia', 'tinturaria', 'passadoria',
+  ],
+  'Tecnologia': [
+    'informatica', 'informática', 'computador', 'notebook', 'laptop',
+    'celular', 'smartphone', 'telefone', 'telecom', 'telecomunicacao', 'telecomunicação',
+    'eletronico', 'eletrônico', 'eletronicos', 'eletrônicos', 'componente',
+    'impressora', 'cartucho', 'toner', 'suprimento',
+    'software', 'sistema', 'tecnologia', 'tech', 'ti ',
+    'internet', 'provedor', 'banda larga', 'fibra',
+    'camera', 'câmera', 'foto', 'fotografia',
+    'som', 'audio', 'áudio', 'caixa de som',
+    'tv', 'televisao', 'televisão', 'monitor', 'tela',
+    'kabum', 'pichau', 'terabyte',
+    'assistencia tecnica', 'assistência técnica', 'conserto', 'reparo',
+    'tablet', 'ipad', 'apple', 'samsung', 'motorola', 'xiaomi', 'lg ',
+    'cabo', 'adaptador', 'carregador', 'fonte', 'bateria',
+    'seguranca eletronica', 'segurança eletrônica', 'alarme', 'cerca eletrica', 'cerca elétrica',
+  ],
+  'Serviços': [
+    'servico', 'serviço', 'servicos', 'serviços', 'prestacao de servico', 'prestação de serviço',
+    'contabilidade', 'contabil', 'contábil', 'contador', 'escritorio contabil', 'escritório contábil',
+    'advocacia', 'advogado', 'jurídico', 'juridico', 'escritorio de advocacia',
+    'consultoria', 'assessoria', 'consultores',
+    'engenharia', 'arquitetura', 'projeto',
+    'marketing', 'publicidade', 'propaganda', 'agencia', 'agência', 'comunicacao', 'comunicação',
+    'seguros', 'seguradora', 'corretora de seguros', 'corretor',
+    'cartorio', 'cartório', 'tabeliao', 'tabelião', 'registro',
+    'correios', 'sedex', 'pac',
+    'banco', 'financeira', 'credito', 'crédito', 'emprestimo', 'empréstimo',
+    'cobranca', 'cobrança',
+    'limpeza', 'conservacao', 'conservação', 'manutencao', 'manutenção',
+    'seguranca', 'segurança', 'vigilancia', 'vigilância', 'monitoramento',
+    'entrega', 'delivery', 'motoboy', 'courier',
+    'salao', 'salão', 'barbearia', 'cabeleireiro', 'cabelereira',
+    'fotocopia', 'fotocópia', 'digitacao', 'digitação',
+  ],
+  'Agropecuária': [
+    'agropecuaria', 'agropecuária', 'agro', 'agric', 'agricultura', 'agronegocio', 'agronegócio',
+    'pecuaria', 'pecuária', 'gado', 'bovino', 'suino', 'suíno', 'avicola', 'avícola',
+    'veterinario', 'veterinária', 'vet ',
+    'racao', 'ração', 'nutricao animal', 'nutrição animal', 'sal mineral',
+    'semente', 'sementes', 'muda', 'mudas', 'viveiro',
+    'adubo', 'fertilizante', 'defensivo', 'herbicida', 'inseticida', 'fungicida', 'pesticida',
+    'implemento', 'trator', 'maquinas agricolas', 'máquinas agrícolas',
+    'irrigacao', 'irrigação',
+    'cooperativa', 'coop.', 'coopat', 'cooperag',
+    'laticinio', 'leite', 'ordenha',
+    'selaria', 'arreio', 'equino', 'cavalo',
+    'cerca', 'arame', 'mourão', 'mourao', 'estaca',
+    'silagem', 'feno', 'pastagem', 'capim',
+    'curral', 'estabulo', 'estábulo', 'aviario', 'aviário', 'granja',
+    'pet shop', 'petshop', 'pet center', 'canil', 'animal',
+  ],
 };
+
+function normalizeText(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
 
 function categorizeBySuplierName(emitenteName: string, categories: Category[]): Category | null {
   if (!emitenteName) return null;
   const nameLower = emitenteName.toLowerCase();
+  const nameNormalized = normalizeText(emitenteName);
+
+  let bestMatch: { catName: string; priority: number } | null = null;
 
   for (const [catName, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
     if (keywords.length === 0) continue;
     for (const kw of keywords) {
-      if (nameLower.includes(kw)) {
-        const found = categories.find(c => c.name.toLowerCase() === catName.toLowerCase());
-        if (found) return found;
+      const kwNormalized = normalizeText(kw);
+      if (nameLower.includes(kw) || nameNormalized.includes(kwNormalized)) {
+        const priority = kw.length;
+        if (!bestMatch || priority > bestMatch.priority) {
+          bestMatch = { catName, priority };
+        }
       }
     }
+  }
+
+  if (bestMatch) {
+    const found = categories.find(c => c.name.toLowerCase() === bestMatch!.catName.toLowerCase());
+    if (found) return found;
   }
   return null;
 }
