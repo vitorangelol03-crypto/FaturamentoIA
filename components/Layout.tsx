@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home, PlusCircle, FileText, Settings as SettingsIcon, MapPin, Shield, Radio } from 'lucide-react';
+import { Home, Plus, FileText, Settings as SettingsIcon, MapPin, Shield, Radio } from 'lucide-react';
 import { clsx } from 'clsx';
 import { User } from '../types';
 
@@ -12,13 +12,43 @@ interface LayoutProps {
   currentUser?: User | null;
 }
 
+const NavItem: React.FC<{
+  icon: React.ReactNode;
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}> = ({ icon, label, active, onClick }) => (
+  <button
+    onClick={onClick}
+    className={clsx(
+      "flex flex-col items-center justify-center gap-0.5 py-1.5 px-1 rounded-xl transition-all duration-200 flex-1 relative",
+      active
+        ? "text-brand-600"
+        : "text-gray-400 active:text-gray-500"
+    )}
+  >
+    <div className={clsx(
+      "flex items-center justify-center w-10 h-8 rounded-full transition-all duration-200",
+      active && "bg-brand-50"
+    )}>
+      {icon}
+    </div>
+    <span className={clsx(
+      "text-[10px] leading-tight transition-all duration-200",
+      active ? "font-semibold text-brand-600" : "font-medium text-gray-400"
+    )}>
+      {label}
+    </span>
+  </button>
+);
+
 export const Layout: React.FC<LayoutProps> = ({ children, currentTab, onTabChange, selectedLocation, onLocationChange, currentUser }) => {
   const isAdmin = currentUser?.role === 'admin' || currentUser?.username === 'zoork22';
+  const hasSefaz = isAdmin && (currentUser?.location === 'Caratinga' || currentUser?.location === 'Ponte Nova');
 
   return (
     <div className="flex flex-col min-h-screen w-full max-w-md mx-auto bg-white shadow-xl relative">
       
-      {/* Header com Seletor de Empresa */}
       <header className="bg-white border-b border-gray-100 px-4 py-3 sticky top-0 z-40 flex items-center justify-between shadow-sm">
         <div className="flex items-center gap-2 text-brand-600">
            <div className="bg-brand-600 text-white p-1.5 rounded-lg">
@@ -49,75 +79,72 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentTab, onTabChang
         </div>
       </header>
 
-      {/* 
-        Main Content Area 
-        - pb-32 garante espaço para o menu (80px) + margem extra
-      */}
-      <main className="flex-1 w-full pb-32 bg-gray-50">
+      <main className="flex-1 w-full pb-28 bg-gray-50">
         {children}
       </main>
 
-      {/* 
-        Bottom Navigation 
-      */}
-      <nav className="bottom-nav fixed bottom-0 left-0 right-0 w-full max-w-md mx-auto bg-white border-t border-gray-200 flex items-center justify-around px-2 pb-[env(safe-area-inset-bottom)] h-[calc(70px+env(safe-area-inset-bottom))] z-50 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
-        <button 
+      <nav className="fixed bottom-0 left-0 right-0 w-full max-w-md mx-auto bg-white/95 backdrop-blur-lg border-t border-gray-200/80 flex items-end justify-around px-1 pb-[env(safe-area-inset-bottom)] z-50 shadow-[0_-2px_12px_rgba(0,0,0,0.06)]"
+        style={{ height: 'calc(68px + env(safe-area-inset-bottom))' }}
+      >
+        <NavItem
+          icon={<Home size={22} strokeWidth={currentTab === 'dashboard' ? 2.5 : 1.8} />}
+          label="Início"
+          active={currentTab === 'dashboard'}
           onClick={() => onTabChange('dashboard')}
-          className={clsx("flex flex-col items-center gap-1 p-2 transition-colors flex-1", currentTab === 'dashboard' ? "text-brand-600" : "text-gray-400")}
-        >
-          <Home size={24} strokeWidth={currentTab === 'dashboard' ? 2.5 : 2} />
-          <span className="text-[10px] font-medium">Início</span>
-        </button>
+        />
 
-        <button 
+        <NavItem
+          icon={<FileText size={22} strokeWidth={currentTab === 'receipts' ? 2.5 : 1.8} />}
+          label="Notas"
+          active={currentTab === 'receipts'}
           onClick={() => onTabChange('receipts')}
-          className={clsx("flex flex-col items-center gap-1 p-2 transition-colors flex-1", currentTab === 'receipts' ? "text-brand-600" : "text-gray-400")}
-        >
-          <FileText size={24} strokeWidth={currentTab === 'receipts' ? 2.5 : 2} />
-          <span className="text-[10px] font-medium">Notas</span>
-        </button>
+        />
 
-        <button 
+        <button
           onClick={() => onTabChange('add')}
-          className="flex flex-col items-center justify-end pb-2 relative z-10 -mt-8 flex-1"
+          className="flex flex-col items-center justify-end relative -mt-4 px-2 flex-1"
         >
           <div className={clsx(
-            "p-4 rounded-full shadow-lg shadow-brand-500/40 transform transition-transform active:scale-95 border-4 border-white",
-            currentTab === 'add' ? "bg-brand-700" : "bg-brand-600 text-white"
+            "w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg transform transition-all duration-200 active:scale-95 border-[3px] border-white",
+            currentTab === 'add'
+              ? "bg-brand-700 shadow-brand-500/30"
+              : "bg-gradient-to-br from-brand-500 to-brand-600 shadow-brand-500/25"
           )}>
-            <PlusCircle size={32} className="text-white" />
+            <Plus size={28} className="text-white" strokeWidth={2.5} />
           </div>
-          <span className="text-[10px] font-medium mt-1 text-gray-500">Adicionar</span>
+          <span className={clsx(
+            "text-[10px] mt-0.5 leading-tight",
+            currentTab === 'add' ? "font-semibold text-brand-600" : "font-medium text-gray-400"
+          )}>
+            Novo
+          </span>
         </button>
 
         {isAdmin && (
-             <button 
-                onClick={() => onTabChange('admin')}
-                className={clsx("flex flex-col items-center gap-1 p-2 transition-colors flex-1", currentTab === 'admin' ? "text-brand-600" : "text-gray-400")}
-            >
-                <Shield size={24} strokeWidth={currentTab === 'admin' ? 2.5 : 2} />
-                <span className="text-[10px] font-medium">Admin</span>
-            </button>
+          <NavItem
+            icon={<Shield size={22} strokeWidth={currentTab === 'admin' ? 2.5 : 1.8} />}
+            label="Admin"
+            active={currentTab === 'admin'}
+            onClick={() => onTabChange('admin')}
+          />
         )}
 
-        {isAdmin && (currentUser?.location === 'Caratinga' || currentUser?.location === 'Ponte Nova') && (
-             <button 
-                onClick={() => onTabChange('sefaz')}
-                className={clsx("flex flex-col items-center gap-1 p-2 transition-colors flex-1", currentTab === 'sefaz' ? "text-brand-600" : "text-gray-400")}
-            >
-                <Radio size={24} strokeWidth={currentTab === 'sefaz' ? 2.5 : 2} />
-                <span className="text-[10px] font-medium">SEFAZ</span>
-            </button>
+        {hasSefaz && (
+          <NavItem
+            icon={<Radio size={22} strokeWidth={currentTab === 'sefaz' ? 2.5 : 1.8} />}
+            label="SEFAZ"
+            active={currentTab === 'sefaz'}
+            onClick={() => onTabChange('sefaz')}
+          />
         )}
 
         {isAdmin && (
-          <button 
+          <NavItem
+            icon={<SettingsIcon size={22} strokeWidth={currentTab === 'settings' ? 2.5 : 1.8} />}
+            label="Ajustes"
+            active={currentTab === 'settings'}
             onClick={() => onTabChange('settings')}
-            className={clsx("flex flex-col items-center gap-1 p-2 transition-colors flex-1", currentTab === 'settings' ? "text-brand-600" : "text-gray-400")}
-          >
-            <SettingsIcon size={24} strokeWidth={currentTab === 'settings' ? 2.5 : 2} />
-            <span className="text-[10px] font-medium">Ajustes</span>
-          </button>
+          />
         )}
       </nav>
     </div>
