@@ -84,8 +84,9 @@ export const Settings: React.FC<SettingsProps> = ({ categories, receipts, refres
               // End date is today (or future)
           }
 
-          // Apply Filters
-          if (period !== 'all') {
+          if (period === 'all') {
+              query = query.gte('id', '00000000-0000-0000-0000-000000000000');
+          } else {
               if (startDate) {
                   const startStr = startDate.toISOString().split('T')[0];
                   query = query.gte('date', startStr);
