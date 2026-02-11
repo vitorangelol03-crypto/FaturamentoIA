@@ -110,13 +110,15 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentTab, onTabChang
             </button>
         )}
 
-        <button 
-          onClick={() => onTabChange('settings')}
-          className={clsx("flex flex-col items-center gap-1 p-2 transition-colors flex-1", currentTab === 'settings' ? "text-brand-600" : "text-gray-400")}
-        >
-          <SettingsIcon size={24} strokeWidth={currentTab === 'settings' ? 2.5 : 2} />
-          <span className="text-[10px] font-medium">Ajustes</span>
-        </button>
+        {isAdmin && (
+          <button 
+            onClick={() => onTabChange('settings')}
+            className={clsx("flex flex-col items-center gap-1 p-2 transition-colors flex-1", currentTab === 'settings' ? "text-brand-600" : "text-gray-400")}
+          >
+            <SettingsIcon size={24} strokeWidth={currentTab === 'settings' ? 2.5 : 2} />
+            <span className="text-[10px] font-medium">Ajustes</span>
+          </button>
+        )}
       </nav>
     </div>
   );

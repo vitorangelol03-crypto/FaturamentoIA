@@ -227,13 +227,13 @@ export default function App() {
               unregisterOverlayClose={unregisterOverlayClose}
             />
         )}
-        {currentTab === 'settings' && (
+        {currentTab === 'settings' && (user.role === 'admin' || user.username === 'zoork22') && (
             <Settings 
                 categories={categories} 
                 refreshCategories={fetchData} 
                 receipts={receipts}
                 userId={user.id}
-                isAdmin={user.role === 'admin' || user.username === 'zoork22'}
+                isAdmin={true}
             />
         )}
       </Layout>
