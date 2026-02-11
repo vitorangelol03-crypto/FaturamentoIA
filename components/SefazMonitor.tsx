@@ -256,6 +256,7 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categor
   const [viewingXml, setViewingXml] = useState<SefazNote | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [periodFilter, setPeriodFilter] = useState<PeriodOption>('current_month');
+  const [linkFilter, setLinkFilter] = useState<'all' | 'linked' | 'unlinked'>('all');
   const [dateStart, setDateStart] = useState('');
   const [dateEnd, setDateEnd] = useState('');
 
@@ -467,9 +468,11 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categor
         if (noteDate < range.start) return false;
         if (noteDate > range.end) return false;
       }
+      if (linkFilter === 'linked' && !note.receipt_id) return false;
+      if (linkFilter === 'unlinked' && note.receipt_id) return false;
       return true;
     });
-  }, [notes, searchQuery, periodFilter, dateStart, dateEnd]);
+  }, [notes, searchQuery, periodFilter, dateStart, dateEnd, linkFilter]);
 
   const totalFiltered = useMemo(() => {
     return filteredNotes.reduce((sum, n) => sum + (n.valor_total || 0), 0);
@@ -667,7 +670,7 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categor
         </div>
       )}
 
-      <div className="flex gap-1 overflow-x-auto pb-0.5">
+      <div className="flex flex-wrap gap-1 pb-0.5">
         {[
           { key: 'current_month' as PeriodOption, label: 'Este mês' },
           { key: 'last_month' as PeriodOption, label: 'Mês passado' },
@@ -681,6 +684,27 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categor
               "px-2.5 py-1 rounded-full text-[11px] font-medium whitespace-nowrap transition-colors",
               periodFilter === opt.key
                 ? "bg-brand-600 text-white"
+                : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+            )}
+          >
+            {opt.label}
+          </button>
+        ))}
+
+        <span className="w-px bg-gray-200 mx-1 self-stretch" />
+
+        {([
+          { key: 'all' as const, label: 'Todas' },
+          { key: 'linked' as const, label: 'Vinculadas' },
+          { key: 'unlinked' as const, label: 'Sem recibo' },
+        ] as const).map(opt => (
+          <button
+            key={opt.key}
+            onClick={() => setLinkFilter(opt.key)}
+            className={clsx(
+              "px-2.5 py-1 rounded-full text-[11px] font-medium whitespace-nowrap transition-colors",
+              linkFilter === opt.key
+                ? opt.key === 'linked' ? "bg-green-600 text-white" : opt.key === 'unlinked' ? "bg-amber-500 text-white" : "bg-brand-600 text-white"
                 : "bg-gray-100 text-gray-500 hover:bg-gray-200"
             )}
           >
