@@ -165,9 +165,10 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, cur
 
   const finishCameraSession = () => {
     stopCamera();
-    setMode('queue');
     document.body.classList.remove('camera-active');
+    unregisterOverlayClose('camera');
     closeOverlay('camera');
+    setMode('queue');
   };
 
   // --- FILE HANDLING ---
