@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Layout } from './components/Layout';
 import { Dashboard } from './components/Dashboard';
 import { ReceiptList } from './components/ReceiptList';
@@ -13,6 +13,8 @@ import { Receipt, Category, User } from './types';
 import { DEFAULT_CATEGORIES } from './constants';
 import { LogOut } from 'lucide-react';
 
+type HistoryEntry = { type: 'tab'; tab: string } | { type: 'overlay'; name: string };
+
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [currentTab, setCurrentTab] = useState('dashboard');
@@ -20,12 +22,15 @@ export default function App() {
   const [categories, setCategories] = useState<Category[]>(DEFAULT_CATEGORIES);
   const [users, setUsers] = useState<User[]>([]);
   const [loadingData, setLoadingData] = useState(false);
+  const historyStackRef = useRef<HistoryEntry[]>([{ type: 'tab', tab: 'dashboard' }]);
+  const overlayCloseHandlersRef = useRef<Map<string, () => void>>(new Map());
   
   useEffect(() => {
     const savedUser = localStorage.getItem('smartreceipts_user');
     if (savedUser) {
         setUser(JSON.parse(savedUser));
     }
+    window.history.replaceState({ type: 'tab', tab: 'dashboard' }, '', '');
   }, []);
 
   const handleLogin = (u: User) => {
@@ -33,12 +38,69 @@ export default function App() {
       localStorage.setItem('smartreceipts_user', JSON.stringify(u));
   };
 
+  const registerOverlayClose = useCallback((name: string, handler: () => void) => {
+    overlayCloseHandlersRef.current.set(name, handler);
+  }, []);
+
+  const unregisterOverlayClose = useCallback((name: string) => {
+    overlayCloseHandlersRef.current.delete(name);
+  }, []);
+
+  const pushOverlay = useCallback((name: string) => {
+    const entry: HistoryEntry = { type: 'overlay', name };
+    historyStackRef.current.push(entry);
+    window.history.pushState({ type: 'overlay', name }, '', '');
+  }, []);
+
+  const closeOverlay = useCallback((name: string) => {
+    const stack = historyStackRef.current;
+    const lastEntry = stack[stack.length - 1];
+    if (lastEntry && lastEntry.type === 'overlay' && lastEntry.name === name) {
+      window.history.back();
+    }
+  }, []);
+
+  const handleTabChange = useCallback((tab: string) => {
+    setCurrentTab(tab);
+    const entry: HistoryEntry = { type: 'tab', tab };
+    historyStackRef.current.push(entry);
+    window.history.pushState({ type: 'tab', tab }, '', '');
+  }, []);
+
+  useEffect(() => {
+    const handlePopState = (e: PopStateEvent) => {
+      const stack = historyStackRef.current;
+      if (stack.length <= 1) {
+        window.history.pushState({ type: 'tab', tab: 'dashboard' }, '', '');
+        return;
+      }
+
+      const popped = stack.pop();
+
+      if (popped && popped.type === 'overlay') {
+        const handler = overlayCloseHandlersRef.current.get(popped.name);
+        if (handler) handler();
+        return;
+      }
+
+      if (popped && popped.type === 'tab') {
+        const prevTabEntry = [...stack].reverse().find(e => e.type === 'tab');
+        if (prevTabEntry && prevTabEntry.type === 'tab') {
+          setCurrentTab(prevTabEntry.tab);
+        }
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
   const handleLogout = () => {
       setUser(null);
       localStorage.removeItem('smartreceipts_user');
       setReceipts([]);
       setUsers([]);
       setCurrentTab('dashboard');
+      historyStackRef.current = [{ type: 'tab', tab: 'dashboard' }];
   };
   
   const [selectedLocation, setSelectedLocation] = useState<string>(() => {
@@ -57,11 +119,9 @@ export default function App() {
       setLoadingData(true);
       const isAdmin = user.role === 'admin' || user.username === 'zoork22';
       
-      // Fetch Users mapping (basic info)
       const { data: userData } = await supabase.from('users').select('id, full_name, username');
       if (userData) setUsers(userData as User[]);
 
-      // Fetch Categories
       const { data: catData } = await supabase
         .from('categories')
         .select('*')
@@ -72,7 +132,6 @@ export default function App() {
         setCategories(catData);
       }
 
-      // Fetch Receipts
       let query = supabase
         .from('receipts')
         .select('*')
@@ -108,7 +167,7 @@ export default function App() {
 
   const handleReceiptSaved = () => {
     fetchData(); 
-    setCurrentTab('receipts');
+    handleTabChange('receipts');
   };
 
   if (!user) {
@@ -119,7 +178,7 @@ export default function App() {
     <div className="flex justify-center bg-gray-100 min-h-screen font-sans">
       <Layout 
         currentTab={currentTab} 
-        onTabChange={setCurrentTab}
+        onTabChange={handleTabChange}
         selectedLocation={selectedLocation}
         onLocationChange={handleLocationChange}
         currentUser={user}
@@ -144,12 +203,29 @@ export default function App() {
                 currentUser={user}
             />
         )}
-        {currentTab === 'add' && <AddReceipt categories={categories} onSaved={handleReceiptSaved} currentUser={user} />}
+        {currentTab === 'add' && (
+          <AddReceipt 
+            categories={categories} 
+            onSaved={handleReceiptSaved} 
+            currentUser={user}
+            pushOverlay={pushOverlay}
+            closeOverlay={closeOverlay}
+            registerOverlayClose={registerOverlayClose}
+            unregisterOverlayClose={unregisterOverlayClose}
+          />
+        )}
         {currentTab === 'admin' && (user.role === 'admin' || user.username === 'zoork22') && (
             <AdminPanel />
         )}
         {currentTab === 'sefaz' && (user.role === 'admin' || user.username === 'zoork22') && (user.location === 'Caratinga' || user.location === 'Ponte Nova') && (
-            <SefazMonitor currentUser={user} categories={categories} />
+            <SefazMonitor 
+              currentUser={user} 
+              categories={categories}
+              pushOverlay={pushOverlay}
+              closeOverlay={closeOverlay}
+              registerOverlayClose={registerOverlayClose}
+              unregisterOverlayClose={unregisterOverlayClose}
+            />
         )}
         {currentTab === 'settings' && (
             <Settings 

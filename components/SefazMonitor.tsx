@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { RefreshCw, Download, Search, FileText, Eye, AlertCircle, CheckCircle, X, Clock, Filter, XCircle, Calendar, Tag, ArrowLeftRight } from 'lucide-react';
 import { User, SefazNote, SefazDocZip, Category } from '../types';
 import { syncSefazNotes, getSefazNotes, saveSefazNote, getLastNSU, updateLastNSU, linkReceiptsToSefazNotes, getLinkedReceiptImages, SefazApiError } from '../services/sefazService';
@@ -8,6 +8,10 @@ import { clsx } from 'clsx';
 interface SefazMonitorProps {
   currentUser: User;
   categories: Category[];
+  pushOverlay: (name: string) => void;
+  closeOverlay: (name: string) => void;
+  registerOverlayClose: (name: string, handler: () => void) => void;
+  unregisterOverlayClose: (name: string) => void;
 }
 
 type PeriodOption = 'all' | 'current_month' | 'last_month' | 'custom';
@@ -244,7 +248,7 @@ function categorizeBySuplierName(emitenteName: string, categories: Category[]): 
   return null;
 }
 
-export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categories }) => {
+export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categories, pushOverlay, closeOverlay, registerOverlayClose, unregisterOverlayClose }) => {
   const [notes, setNotes] = useState<SefazNote[]>([]);
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -261,6 +265,15 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categor
   const [linkFilter, setLinkFilter] = useState<'all' | 'linked' | 'unlinked'>('all');
   const [dateStart, setDateStart] = useState('');
   const [dateEnd, setDateEnd] = useState('');
+
+  const closeSefazDetail = useCallback(() => {
+    setViewingXml(null);
+  }, []);
+
+  useEffect(() => {
+    registerOverlayClose('sefaz-detail', closeSefazDetail);
+    return () => unregisterOverlayClose('sefaz-detail');
+  }, [closeSefazDetail, registerOverlayClose, unregisterOverlayClose]);
 
   const defaultLocation = currentUser.location || 'Caratinga';
   const accessibleLocations: string[] = currentUser.sefaz_access && currentUser.sefaz_access.length > 0
@@ -804,7 +817,7 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categor
             return (
               <div
                 key={note.id || idx}
-                onClick={() => setViewingXml(note)}
+                onClick={() => { setViewingXml(note); pushOverlay('sefaz-detail'); }}
                 className="bg-white rounded-lg border border-gray-100 px-3 py-2.5 space-y-1.5 active:bg-gray-50 cursor-pointer transition-colors"
               >
                 <div className="flex items-start justify-between gap-2">
@@ -851,7 +864,7 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categor
           <div className="bg-white rounded-2xl w-full max-w-md max-h-[80vh] flex flex-col shadow-2xl">
             <div className="flex items-center justify-between p-4 border-b">
               <h3 className="font-bold text-gray-800 text-sm">Detalhes da Nota</h3>
-              <button onClick={() => setViewingXml(null)} className="text-gray-400 hover:text-gray-600">
+              <button onClick={() => closeOverlay('sefaz-detail')} className="text-gray-400 hover:text-gray-600">
                 <X size={20} />
               </button>
             </div>
@@ -931,7 +944,7 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categor
                 )}
               </button>
               <button
-                onClick={() => setViewingXml(null)}
+                onClick={() => closeOverlay('sefaz-detail')}
                 className="flex-1 py-2.5 bg-gray-100 text-gray-700 rounded-xl text-sm font-semibold hover:bg-gray-200 transition-colors"
               >
                 Fechar

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Camera, Upload, X, CheckCircle, XCircle, Loader2, Play, Pause, AlertTriangle, FileText, ArrowRight, Save, Edit2, RotateCcw, Image as ImageIcon, Zap, Check, MapPin } from 'lucide-react';
 import { extractReceiptData } from '../services/geminiService';
 import { Category, User } from '../types';
@@ -10,6 +10,10 @@ interface AddReceiptProps {
   categories: Category[];
   onSaved: () => void;
   currentUser: User;
+  pushOverlay: (name: string) => void;
+  closeOverlay: (name: string) => void;
+  registerOverlayClose: (name: string, handler: () => void) => void;
+  unregisterOverlayClose: (name: string) => void;
 }
 
 type QueueStatus = 'waiting' | 'processing' | 'saving' | 'success' | 'error';
@@ -29,7 +33,7 @@ interface QueueItem {
   extractedCNPJ?: string;
 }
 
-export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, currentUser }) => {
+export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, currentUser, pushOverlay, closeOverlay, registerOverlayClose, unregisterOverlayClose }) => {
   const [mode, setMode] = useState<'upload' | 'camera' | 'queue' | 'summary'>('upload');
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -75,12 +79,26 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, cur
 
   // --- CAMERA FUNCTIONS ---
 
+  const closeCameraOverlay = useCallback(() => {
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(track => track.stop());
+      setCameraStream(null);
+    }
+    setMode('upload');
+    document.body.classList.remove('camera-active');
+  }, [cameraStream]);
+
+  useEffect(() => {
+    registerOverlayClose('camera', closeCameraOverlay);
+    return () => unregisterOverlayClose('camera');
+  }, [closeCameraOverlay, registerOverlayClose, unregisterOverlayClose]);
+
   const startCamera = async () => {
     try {
       setMode('camera');
       const stream = await navigator.mediaDevices.getUserMedia({ 
         video: { 
-          facingMode: 'environment', // Tenta usar câmera traseira
+          facingMode: 'environment',
           width: { ideal: 1920 },
           height: { ideal: 1080 }
         },
@@ -91,10 +109,10 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, cur
         videoRef.current.srcObject = stream;
       }
       setPermissionError(false);
+      pushOverlay('camera');
     } catch (err) {
       console.error("Erro ao acessar câmera:", err);
       setPermissionError(true);
-      // Fallback: Se der erro (ex: permissão negada), volta para upload normal
       alert("Não foi possível acessar a câmera. Verifique as permissões.");
       setMode('upload');
     }
@@ -148,6 +166,8 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, cur
   const finishCameraSession = () => {
     stopCamera();
     setMode('queue');
+    document.body.classList.remove('camera-active');
+    closeOverlay('camera');
   };
 
   // --- FILE HANDLING ---
@@ -227,7 +247,6 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, cur
     }
   }, [queue, mode, isProcessing]);
 
-  // Clean up stream on unmount
   useEffect(() => {
       return () => {
           stopCamera();
@@ -513,6 +532,9 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, cur
           <div className="fixed inset-0 z-[100] bg-black flex flex-col">
               {/* Top Bar */}
               <div className="absolute top-0 left-0 right-0 p-4 flex justify-between items-center z-10 bg-gradient-to-b from-black/50 to-transparent">
+                  <button onClick={() => { closeCameraOverlay(); closeOverlay('camera'); }} className="w-10 h-10 flex items-center justify-center bg-black/40 backdrop-blur-md rounded-full text-white active:scale-95 transition-transform">
+                      <X size={22} />
+                  </button>
                   <div className="text-white font-medium flex items-center gap-2">
                        <span className="bg-brand-600 px-2 py-0.5 rounded text-xs">Modo Burst</span>
                        {queue.length > 0 && <span>{queue.length} capturadas</span>}

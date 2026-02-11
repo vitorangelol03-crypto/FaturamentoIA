@@ -64,7 +64,15 @@ A smart receipt/invoice management application built with React and TypeScript. 
 - Static deployment using `npm run build` → serves from `dist/` directory
 - Note: API endpoints only work in dev mode (Vite middleware). For production, a separate backend or edge functions would be needed.
 
+## Navigation & Back Button
+- Centralized History API in App.tsx — single popstate listener with typed history stack (tab vs overlay)
+- Overlay system: pushOverlay/closeOverlay/registerOverlayClose/unregisterOverlayClose passed as props to components
+- Camera overlay (AddReceipt) and SEFAZ detail modal (SefazMonitor) both integrated with back button
+- Back button on mobile navigates between tabs instead of closing the app
+- Camera has an X close button in addition to "Concluir" (finish) button
+
 ## Recent Changes
+- 2026-02-11: Added camera close button (X) and centralized History API back button handling for mobile navigation
 - 2026-02-11: Added per-admin SEFAZ access control (sefaz_access field on users table) with location switcher in Monitor
 - 2026-02-11: Made SEFAZ note cards fully clickable, moved PDF download to details modal
 - 2026-02-11: Added receipt-SEFAZ note auto-linking via access_key (chave de acesso 44 dígitos)
