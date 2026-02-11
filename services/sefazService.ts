@@ -71,7 +71,6 @@ export async function getLastNSU(location: string = 'Caratinga'): Promise<string
     .from('sefaz_sync_control')
     .select('ultimo_nsu')
     .eq('location', location)
-    .order('updated_at', { ascending: false })
     .limit(1)
     .single();
 
@@ -90,11 +89,11 @@ export async function updateLastNSU(nsu: string, location: string = 'Caratinga')
   if (data) {
     await supabase
       .from('sefaz_sync_control')
-      .update({ ultimo_nsu: nsu, updated_at: new Date().toISOString() })
+      .update({ ultimo_nsu: nsu })
       .eq('id', data.id);
   } else {
     await supabase
       .from('sefaz_sync_control')
-      .insert({ ultimo_nsu: nsu, location, updated_at: new Date().toISOString() });
+      .insert({ ultimo_nsu: nsu, location });
   }
 }
