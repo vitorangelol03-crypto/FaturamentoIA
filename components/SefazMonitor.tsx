@@ -690,7 +690,11 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categor
           {filteredNotes.map((note, idx) => {
             const noteCat = getCategoryForNote(note);
             return (
-              <div key={note.id || idx} className="bg-white rounded-lg border border-gray-100 px-3 py-2.5 space-y-1.5">
+              <div
+                key={note.id || idx}
+                onClick={() => setViewingXml(note)}
+                className="bg-white rounded-lg border border-gray-100 px-3 py-2.5 space-y-1.5 active:bg-gray-50 cursor-pointer transition-colors"
+              >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
                     <div className="font-semibold text-xs text-gray-800 truncate">
@@ -723,21 +727,6 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categor
                   {note.valor_total !== undefined && note.valor_total !== null && (
                     <span className="font-bold text-sm text-gray-800">{formatCurrency(note.valor_total)}</span>
                   )}
-                </div>
-
-                <div className="flex items-center gap-1.5 pt-1">
-                  <button
-                    onClick={() => setViewingXml(note)}
-                    className="flex items-center gap-1 px-2 py-1 text-[10px] font-medium text-brand-600 bg-brand-50 rounded-md hover:bg-brand-100 transition-colors"
-                  >
-                    <Eye size={10} /> Detalhes
-                  </button>
-                  <button
-                    onClick={() => generateDanfePDF(note)}
-                    className="flex items-center gap-1 px-2 py-1 text-[10px] font-medium text-gray-500 bg-gray-50 rounded-md hover:bg-gray-100 transition-colors"
-                  >
-                    <Download size={10} /> PDF
-                  </button>
                 </div>
               </div>
             );
@@ -812,10 +801,16 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categor
                 </div>
               )}
             </div>
-            <div className="p-4 border-t">
+            <div className="p-4 border-t flex gap-2">
+              <button
+                onClick={() => { generateDanfePDF(viewingXml); }}
+                className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-brand-600 text-white rounded-xl text-sm font-semibold hover:bg-brand-700 transition-colors"
+              >
+                <Download size={14} /> Baixar PDF
+              </button>
               <button
                 onClick={() => setViewingXml(null)}
-                className="w-full py-2.5 bg-gray-100 text-gray-700 rounded-xl text-sm font-semibold hover:bg-gray-200 transition-colors"
+                className="flex-1 py-2.5 bg-gray-100 text-gray-700 rounded-xl text-sm font-semibold hover:bg-gray-200 transition-colors"
               >
                 Fechar
               </button>
