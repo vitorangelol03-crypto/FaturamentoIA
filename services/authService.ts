@@ -129,7 +129,7 @@ export const authService = {
       if (error) throw error;
   },
 
-  async updateUserProfile(userId: string, updates: { full_name?: string; username?: string; role?: string; status?: string; location?: string }): Promise<void> {
+  async updateUserProfile(userId: string, updates: { full_name?: string; username?: string; role?: string; status?: string; location?: string; sefaz_access?: string[] }): Promise<void> {
       const { error } = await supabase
           .from('users')
           .update(updates)

@@ -5,6 +5,7 @@ export interface User {
   role?: 'admin' | 'user';
   status?: 'pending' | 'active' | 'rejected';
   location?: 'Caratinga' | 'Ponte Nova';
+  sefaz_access?: string[];
 }
 
 export interface ReceiptItem {
