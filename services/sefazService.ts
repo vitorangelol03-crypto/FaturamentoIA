@@ -108,11 +108,9 @@ export async function updateLastNSU(nsu: string, location: string = 'Caratinga')
 export async function linkReceiptsToSefazNotes(location: string = 'Caratinga'): Promise<{ linked: number }> {
   const { data: unlinkedNotes, error: notesError } = await supabase
     .from('sefaz_notes')
-    .select('id, chave_acesso')
+    .select('id, chave_acesso, receipt_id')
     .eq('location', location)
     .is('receipt_id', null);
-
-  if (notesError || !unlinkedNotes || unlinkedNotes.length === 0) return { linked: 0 };
 
   const { data: receipts, error: receiptsError } = await supabase
     .from('receipts')
@@ -121,7 +119,7 @@ export async function linkReceiptsToSefazNotes(location: string = 'Caratinga'): 
     .not('access_key', 'is', null)
     .neq('access_key', '');
 
-  if (receiptsError || !receipts || receipts.length === 0) return { linked: 0 };
+  if (receiptsError || !receipts) return { linked: 0 };
 
   const receiptMap = new Map<string, string>();
   for (const r of receipts) {
@@ -131,15 +129,43 @@ export async function linkReceiptsToSefazNotes(location: string = 'Caratinga'): 
   }
 
   let linkedCount = 0;
-  for (const note of unlinkedNotes) {
-    const cleanChave = note.chave_acesso?.replace(/\D/g, '') || '';
-    const matchedReceiptId = receiptMap.get(cleanChave);
-    if (matchedReceiptId) {
-      const { error } = await supabase
-        .from('sefaz_notes')
-        .update({ receipt_id: matchedReceiptId })
-        .eq('id', note.id);
-      if (!error) linkedCount++;
+
+  if (unlinkedNotes && unlinkedNotes.length > 0) {
+    for (const note of unlinkedNotes) {
+      const cleanChave = note.chave_acesso?.replace(/\D/g, '') || '';
+      const matchedReceiptId = receiptMap.get(cleanChave);
+      if (matchedReceiptId) {
+        const { error } = await supabase
+          .from('sefaz_notes')
+          .update({ receipt_id: matchedReceiptId })
+          .eq('id', note.id);
+        if (!error) linkedCount++;
+      }
+    }
+  }
+
+  const { data: linkedNotes } = await supabase
+    .from('sefaz_notes')
+    .select('id, receipt_id')
+    .eq('location', location)
+    .not('receipt_id', 'is', null);
+
+  if (linkedNotes && linkedNotes.length > 0) {
+    const linkedReceiptIds = [...new Set(linkedNotes.map(n => n.receipt_id).filter(Boolean))];
+    const { data: existingReceipts } = await supabase
+      .from('receipts')
+      .select('id')
+      .in('id', linkedReceiptIds);
+
+    const existingIds = new Set((existingReceipts || []).map(r => r.id));
+
+    for (const note of linkedNotes) {
+      if (note.receipt_id && !existingIds.has(note.receipt_id)) {
+        await supabase
+          .from('sefaz_notes')
+          .update({ receipt_id: null })
+          .eq('id', note.id);
+      }
     }
   }
 
@@ -174,8 +200,7 @@ export async function linkSingleReceipt(accessKey: string, receiptId: string, lo
     .from('sefaz_notes')
     .update({ receipt_id: receiptId })
     .eq('chave_acesso', cleanKey)
-    .eq('location', location)
-    .is('receipt_id', null);
+    .eq('location', location);
 
   return !error;
 }
