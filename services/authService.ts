@@ -52,7 +52,7 @@ export const authService = {
 
       const { data, error } = await supabase
         .from('users')
-        .select('id, full_name, username, role, status, location')
+        .select('id, full_name, username, role, status, location, sefaz_access')
         .eq('username', username)
         .eq('password', passwordHash)
         .single();
@@ -76,7 +76,8 @@ export const authService = {
           username: data.username,
           role: data.role as 'admin' | 'user',
           status: data.status as 'active' | 'pending' | 'rejected',
-          location: (data.location as 'Caratinga' | 'Ponte Nova') || 'Caratinga'
+          location: (data.location as 'Caratinga' | 'Ponte Nova') || 'Caratinga',
+          sefaz_access: data.sefaz_access || undefined
       };
 
       return { user };
@@ -90,7 +91,7 @@ export const authService = {
   async getPendingUsers(): Promise<User[]> {
       const { data, error } = await supabase
           .from('users')
-          .select('id, full_name, username, status, created_at, location')
+          .select('id, full_name, username, status, created_at, location, sefaz_access')
           .eq('status', 'pending')
           .order('created_at', { ascending: false });
       
@@ -101,7 +102,7 @@ export const authService = {
   async getAllUsers(): Promise<User[]> {
       const { data, error } = await supabase
           .from('users')
-          .select('id, full_name, username, status, role, created_at, location')
+          .select('id, full_name, username, status, role, created_at, location, sefaz_access')
           .neq('status', 'pending') // Trazemos ativos e rejeitados
           .order('full_name', { ascending: true });
 

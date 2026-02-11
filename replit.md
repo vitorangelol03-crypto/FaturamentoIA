@@ -65,6 +65,8 @@ A smart receipt/invoice management application built with React and TypeScript. 
 - Note: API endpoints only work in dev mode (Vite middleware). For production, a separate backend or edge functions would be needed.
 
 ## Recent Changes
+- 2026-02-11: Added per-admin SEFAZ access control (sefaz_access field on users table) with location switcher in Monitor
+- 2026-02-11: Made SEFAZ note cards fully clickable, moved PDF download to details modal
 - 2026-02-11: Added receipt-SEFAZ note auto-linking via access_key (chave de acesso 44 dígitos)
 - 2026-02-11: Added SEFAZ Monitor for Ponte Nova (CNPJ 53824315000110) with separate PFX certificate, multi-location support
 - 2026-02-06: Added SEFAZ Monitor with node-mde integration, DANFE PDF generation, complete admin UI for NF-e monitoring

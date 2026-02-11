@@ -108,12 +108,18 @@ export const AdminPanel: React.FC = () => {
         if (!editingUser) return;
         setActionLoading('edit-save');
         try {
-            await authService.updateUserProfile(editingUser.id, {
+            const updates: any = {
                 full_name: editingUser.full_name,
                 username: editingUser.username,
                 role: editingUser.role,
                 location: editingUser.location
-            });
+            };
+            if (editingUser.role === 'admin') {
+                updates.sefaz_access = editingUser.sefaz_access || [editingUser.location || 'Caratinga'];
+            } else {
+                updates.sefaz_access = null;
+            }
+            await authService.updateUserProfile(editingUser.id, updates);
             setEditingUser(null);
             await fetchData();
         } catch (e) {
@@ -372,6 +378,38 @@ export const AdminPanel: React.FC = () => {
                                     <option value="Ponte Nova">Ponte Nova</option>
                                 </select>
                             </div>
+                            {editingUser.role === 'admin' && (
+                                <div>
+                                    <label className="text-xs font-semibold text-gray-500">Acesso Monitor SEFAZ</label>
+                                    <div className="mt-2 space-y-2">
+                                        {(['Caratinga', 'Ponte Nova'] as const).map(loc => {
+                                            const access = editingUser.sefaz_access || [editingUser.location || 'Caratinga'];
+                                            const isChecked = access.includes(loc);
+                                            return (
+                                                <label key={loc} className="flex items-center gap-2 cursor-pointer">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={isChecked}
+                                                        onChange={() => {
+                                                            let newAccess: string[];
+                                                            if (isChecked) {
+                                                                newAccess = access.filter(l => l !== loc);
+                                                                if (newAccess.length === 0) newAccess = [loc];
+                                                            } else {
+                                                                newAccess = [...access, loc];
+                                                            }
+                                                            setEditingUser({...editingUser, sefaz_access: newAccess});
+                                                        }}
+                                                        className="w-4 h-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+                                                    />
+                                                    <span className="text-sm text-gray-700">{loc}</span>
+                                                </label>
+                                            );
+                                        })}
+                                    </div>
+                                    <p className="text-[10px] text-gray-400 mt-1">Selecione quais monitores SEFAZ este admin pode acessar</p>
+                                </div>
+                            )}
                             <button 
                                 onClick={handleSaveProfile}
                                 disabled={actionLoading === 'edit-save'}

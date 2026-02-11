@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { RefreshCw, Download, Search, FileText, Eye, AlertCircle, CheckCircle, X, Clock, Filter, XCircle, Calendar, Tag } from 'lucide-react';
+import { RefreshCw, Download, Search, FileText, Eye, AlertCircle, CheckCircle, X, Clock, Filter, XCircle, Calendar, Tag, ArrowLeftRight } from 'lucide-react';
 import { User, SefazNote, SefazDocZip, Category } from '../types';
 import { syncSefazNotes, getSefazNotes, saveSefazNote, getLastNSU, updateLastNSU, linkReceiptsToSefazNotes } from '../services/sefazService';
 import { generateDanfePDF, generateSefazReportPDF } from '../services/pdfService';
@@ -259,14 +259,34 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categor
   const [dateStart, setDateStart] = useState('');
   const [dateEnd, setDateEnd] = useState('');
 
-  const userLocation = currentUser.location || 'Caratinga';
+  const defaultLocation = currentUser.location || 'Caratinga';
+  const accessibleLocations: string[] = currentUser.sefaz_access && currentUser.sefaz_access.length > 0
+    ? currentUser.sefaz_access
+    : [defaultLocation];
+  const canSwitchLocation = accessibleLocations.length > 1;
+
+  const [activeLocation, setActiveLocation] = useState<string>(
+    accessibleLocations.includes(defaultLocation) ? defaultLocation : accessibleLocations[0]
+  );
+
+  useEffect(() => {
+    if (!accessibleLocations.includes(activeLocation)) {
+      setActiveLocation(accessibleLocations[0]);
+    }
+  }, [accessibleLocations.join(',')]);
+
+  const switchLocation = () => {
+    const currentIdx = accessibleLocations.indexOf(activeLocation);
+    const nextIdx = (currentIdx + 1) % accessibleLocations.length;
+    setActiveLocation(accessibleLocations[nextIdx]);
+  };
 
   const loadData = async () => {
     setLoading(true);
     try {
       const [notesData, nsu] = await Promise.all([
-        getSefazNotes(userLocation),
-        getLastNSU(userLocation),
+        getSefazNotes(activeLocation),
+        getLastNSU(activeLocation),
       ]);
       setNotes(notesData);
       setLastNSU(nsu);
@@ -279,7 +299,7 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categor
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [activeLocation]);
 
   const parseResNFe = (doc: SefazDocZip): Partial<SefazNote> | null => {
     const json = doc.json;
@@ -336,8 +356,8 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categor
     setSuccessMsg(null);
 
     try {
-      const currentNSU = await getLastNSU(userLocation);
-      const result = await syncSefazNotes(currentNSU, userLocation);
+      const currentNSU = await getLastNSU(activeLocation);
+      const result = await syncSefazNotes(currentNSU, activeLocation);
 
       if (result.cStat === '137' || result.cStat === '656') {
         setSuccessMsg('Nenhum documento novo encontrado na SEFAZ.');
@@ -377,7 +397,7 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categor
             parsed.category_id = cat.id;
           }
           try {
-            await saveSefazNote(parsed, userLocation);
+            await saveSefazNote(parsed, activeLocation);
             savedCount++;
           } catch (saveErr: any) {
             console.error('Erro ao salvar nota:', saveErr);
@@ -385,14 +405,14 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categor
         }
       }
 
-      await updateLastNSU(result.ultNSU, userLocation);
+      await updateLastNSU(result.ultNSU, activeLocation);
       setMaxNSU(result.maxNSU);
       setLastSyncTime(new Date().toLocaleString('pt-BR'));
       setSuccessMsg(`Sincronização concluída! ${savedCount} documento(s) processado(s). NSU: ${result.ultNSU}`);
       await loadData();
 
       try {
-        const linkResult = await linkReceiptsToSefazNotes(userLocation);
+        const linkResult = await linkReceiptsToSefazNotes(activeLocation);
         if (linkResult.linked > 0) {
           setSuccessMsg(prev => `${prev} | ${linkResult.linked} nota(s) vinculada(s) automaticamente.`);
           await loadData();
@@ -501,7 +521,7 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categor
       alert('Nenhuma nota para incluir no relatório.');
       return;
     }
-    generateSefazReportPDF(filteredNotes, categories, userLocation, getPeriodLabel(), categorySummary);
+    generateSefazReportPDF(filteredNotes, categories, activeLocation, getPeriodLabel(), categorySummary);
   };
 
   const getStatusBadge = (status?: string) => {
@@ -542,10 +562,19 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categor
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1.5 min-w-0">
           <FileText size={16} className="text-brand-600 flex-shrink-0" />
-          <h2 className="text-sm font-bold text-gray-800 truncate">SEFAZ {userLocation}</h2>
+          <h2 className="text-sm font-bold text-gray-800 truncate">SEFAZ {activeLocation}</h2>
           <span className="text-[10px] text-gray-400 flex-shrink-0">{notes.length} notas</span>
         </div>
         <div className="flex items-center gap-1.5 flex-shrink-0">
+          {canSwitchLocation && (
+            <button
+              onClick={switchLocation}
+              className="p-2 rounded-lg text-brand-600 hover:bg-brand-50 active:scale-95 transition-all"
+              title={`Alternar para ${accessibleLocations.find(l => l !== activeLocation)}`}
+            >
+              <ArrowLeftRight size={18} />
+            </button>
+          )}
           <button
             onClick={handleDownloadReport}
             disabled={filteredNotes.length === 0}
