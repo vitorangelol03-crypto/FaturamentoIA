@@ -18,13 +18,23 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Método não permitido' });
   }
 
-  const { action, ultNSU, chave, nsu } = req.body;
+  const { action, ultNSU, chave, nsu, location } = req.body;
 
-  const pfxBase64 = process.env.PFX_CERTIFICATE;
-  const pfxPassword = process.env.PFX_PASSWORD;
+  const locationConfigs = {
+    'Caratinga': { pfxEnv: 'PFX_CERTIFICATE', passEnv: 'PFX_PASSWORD', cnpj: '11802464000138' },
+    'Ponte Nova': { pfxEnv: 'PFX_CERTIFICATE_PN', passEnv: 'PFX_PASSWORD_PN', cnpj: '53824315000110' },
+  };
+
+  const config = locationConfigs[location || 'Caratinga'];
+  if (!config) {
+    return res.status(400).json({ error: 'Localização inválida.' });
+  }
+
+  const pfxBase64 = process.env[config.pfxEnv];
+  const pfxPassword = process.env[config.passEnv];
 
   if (!pfxBase64 || !pfxPassword) {
-    return res.status(500).json({ error: 'Certificado PFX não configurado.' });
+    return res.status(500).json({ error: `Certificado PFX não configurado para ${location || 'Caratinga'}.` });
   }
 
   try {
@@ -33,7 +43,7 @@ export default async function handler(req, res) {
     const distribuicao = new DistribuicaoDFe({
       pfx: pfxBuffer,
       passphrase: pfxPassword,
-      cnpj: '11802464000138',
+      cnpj: config.cnpj,
       cUFAutor: '31',
       tpAmb: '1',
     });

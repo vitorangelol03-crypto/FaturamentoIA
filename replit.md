@@ -28,16 +28,20 @@ A smart receipt/invoice management application built with React and TypeScript. 
   - `PFX_CERTIFICATE` - Base64-encoded PFX certificate for SEFAZ authentication
   - `PFX_PASSWORD` - PFX certificate password
 - **Supabase**: Connection details in `constants.ts` (external Supabase project)
-- **SEFAZ Config**: CNPJ 11802464000138, UF 31 (MG - Minas Gerais), tpAmb 1 (Produção)
+- **SEFAZ Config (multi-location)**:
+  - Caratinga: CNPJ 11802464000138, PFX_CERTIFICATE / PFX_PASSWORD
+  - Ponte Nova: CNPJ 53824315000110, PFX_CERTIFICATE_PN / PFX_PASSWORD_PN
+  - Both: UF 31 (MG), tpAmb 1 (Produção)
 
 ## SEFAZ Monitor
-- Admin-only access (user.role === 'admin' || user.username === 'zoork22')
+- Admin-only access per location (admin + location = 'Caratinga' or 'Ponte Nova')
+- Each location has its own CNPJ, PFX certificate, and sync control (ultimo_nsu)
+- API accepts `location` parameter to select correct certificate/CNPJ
 - Queries SEFAZ distribution service via node-mde DistribuicaoDFe
-- Stores notes in Supabase `sefaz_notes` table (with chave_acesso as unique key)
-- Tracks sync progress in `sefaz_sync_control` table (ultimo_nsu)
+- Stores notes in Supabase `sefaz_notes` table (with chave_acesso as unique key, filtered by location)
+- Tracks sync progress in `sefaz_sync_control` table (ultimo_nsu per location)
 - Handles resNFe (summaries) and nfeProc (full NF-e) document types
 - DANFE PDF generation via jsPDF for each note
-- Locations: Caratinga and Ponte Nova (both in MG)
 
 ## Supabase Tables
 - `users` - User accounts with roles (admin/user) and locations
@@ -52,5 +56,6 @@ A smart receipt/invoice management application built with React and TypeScript. 
 - Note: API endpoints only work in dev mode (Vite middleware). For production, a separate backend or edge functions would be needed.
 
 ## Recent Changes
+- 2026-02-11: Added SEFAZ Monitor for Ponte Nova (CNPJ 53824315000110) with separate PFX certificate, multi-location support
 - 2026-02-06: Added SEFAZ Monitor with node-mde integration, DANFE PDF generation, complete admin UI for NF-e monitoring
 - 2026-02-06: Initial Replit setup - configured Vite for port 5000, removed ESM import maps, added API middleware for Gemini

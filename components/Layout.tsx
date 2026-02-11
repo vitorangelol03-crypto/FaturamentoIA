@@ -100,7 +100,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentTab, onTabChang
             </button>
         )}
 
-        {isAdmin && currentUser?.location === 'Caratinga' && (
+        {isAdmin && (currentUser?.location === 'Caratinga' || currentUser?.location === 'Ponte Nova') && (
              <button 
                 onClick={() => onTabChange('sefaz')}
                 className={clsx("flex flex-col items-center gap-1 p-2 transition-colors flex-1", currentTab === 'sefaz' ? "text-brand-600" : "text-gray-400")}

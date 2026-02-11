@@ -24,12 +24,14 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser }) => {
   const [dateEnd, setDateEnd] = useState('');
   const [showFilters, setShowFilters] = useState(false);
 
+  const userLocation = currentUser.location || 'Caratinga';
+
   const loadData = async () => {
     setLoading(true);
     try {
       const [notesData, nsu] = await Promise.all([
-        getSefazNotes(),
-        getLastNSU(),
+        getSefazNotes(userLocation),
+        getLastNSU(userLocation),
       ]);
       setNotes(notesData);
       setLastNSU(nsu);
@@ -100,8 +102,8 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser }) => {
     setSuccessMsg(null);
 
     try {
-      const currentNSU = await getLastNSU();
-      const result = await syncSefazNotes(currentNSU);
+      const currentNSU = await getLastNSU(userLocation);
+      const result = await syncSefazNotes(currentNSU, userLocation);
 
       if (result.cStat === '137' || result.cStat === '656') {
         setSuccessMsg('Nenhum documento novo encontrado na SEFAZ.');
@@ -137,7 +139,7 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser }) => {
 
         if (parsed && parsed.chave_acesso) {
           try {
-            await saveSefazNote(parsed);
+            await saveSefazNote(parsed, userLocation);
             savedCount++;
           } catch (saveErr: any) {
             console.error('Erro ao salvar nota:', saveErr);
@@ -145,7 +147,7 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser }) => {
         }
       }
 
-      await updateLastNSU(result.ultNSU);
+      await updateLastNSU(result.ultNSU, userLocation);
       setMaxNSU(result.maxNSU);
       setLastSyncTime(new Date().toLocaleString('pt-BR'));
       setSuccessMsg(`Sincronização concluída! ${savedCount} documento(s) processado(s). NSU: ${result.ultNSU}`);
@@ -216,7 +218,7 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser }) => {
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
           <FileText size={20} className="text-brand-600" />
-          Monitor SEFAZ
+          Monitor SEFAZ - {userLocation}
         </h2>
         <button
           onClick={handleSync}

@@ -148,7 +148,7 @@ export default function App() {
         {currentTab === 'admin' && (user.role === 'admin' || user.username === 'zoork22') && (
             <AdminPanel />
         )}
-        {currentTab === 'sefaz' && (user.role === 'admin' || user.username === 'zoork22') && user.location === 'Caratinga' && (
+        {currentTab === 'sefaz' && (user.role === 'admin' || user.username === 'zoork22') && (user.location === 'Caratinga' || user.location === 'Ponte Nova') && (
             <SefazMonitor currentUser={user} />
         )}
         {currentTab === 'settings' && (

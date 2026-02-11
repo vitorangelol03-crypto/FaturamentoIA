@@ -28,14 +28,26 @@ export default defineConfig({
           req.on('data', (chunk: Buffer) => { body += chunk.toString(); });
           req.on('end', async () => {
             try {
-              const { action, ultNSU, chave, nsu } = JSON.parse(body);
+              const { action, ultNSU, chave, nsu, location } = JSON.parse(body);
 
-              const pfxBase64 = process.env.PFX_CERTIFICATE;
-              const pfxPassword = process.env.PFX_PASSWORD;
+              const locationConfigs: Record<string, { pfxEnv: string; passEnv: string; cnpj: string }> = {
+                'Caratinga': { pfxEnv: 'PFX_CERTIFICATE', passEnv: 'PFX_PASSWORD', cnpj: '11802464000138' },
+                'Ponte Nova': { pfxEnv: 'PFX_CERTIFICATE_PN', passEnv: 'PFX_PASSWORD_PN', cnpj: '53824315000110' },
+              };
+
+              const config = locationConfigs[location || 'Caratinga'];
+              if (!config) {
+                res.writeHead(400, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Localização inválida.' }));
+                return;
+              }
+
+              const pfxBase64 = process.env[config.pfxEnv];
+              const pfxPassword = process.env[config.passEnv];
 
               if (!pfxBase64 || !pfxPassword) {
                 res.writeHead(500, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ error: 'Certificado PFX não configurado.' }));
+                res.end(JSON.stringify({ error: `Certificado PFX não configurado para ${location || 'Caratinga'}.` }));
                 return;
               }
 
@@ -45,7 +57,7 @@ export default defineConfig({
               const distribuicao = new DistribuicaoDFe({
                 pfx: pfxBuffer,
                 passphrase: pfxPassword,
-                cnpj: '11802464000138',
+                cnpj: config.cnpj,
                 cUFAutor: '31',
                 tpAmb: '1',
               });
