@@ -408,3 +408,166 @@ export const generateDanfePDF = (note: SefazNote) => {
   const fileName = `DANFE_${note.numero_nota || note.nsu || 'nota'}_${(note.emitente_nome || 'emitente').replace(/[^a-z0-9]/gi, '_').substring(0, 20)}.pdf`;
   doc.save(fileName);
 };
+
+export const generateSefazReportPDF = (
+  notes: SefazNote[],
+  categories: { id: string; name: string; color: string }[],
+  location: string,
+  periodLabel: string,
+  categorySummary: { category: { name: string; color: string }; total: number; count: number }[]
+) => {
+  if (!window.jspdf) {
+    alert("Biblioteca PDF não carregada. Verifique sua conexão.");
+    return;
+  }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  const pageWidth = doc.internal.pageSize.getWidth();
+
+  doc.setFillColor(2, 132, 199);
+  doc.rect(0, 0, pageWidth, 35, 'F');
+
+  doc.setFontSize(18);
+  doc.setTextColor(255, 255, 255);
+  doc.text('Relatório SEFAZ - Notas Fiscais', 14, 16);
+
+  doc.setFontSize(10);
+  doc.text(`Unidade: ${location}`, 14, 24);
+  doc.text(`Período: ${periodLabel}`, 14, 30);
+
+  doc.setFontSize(8);
+  doc.text(`Gerado em: ${new Date().toLocaleString('pt-BR')}`, pageWidth - 14, 30, { align: 'right' });
+
+  const totalValue = notes.reduce((s, n) => s + (n.valor_total || 0), 0);
+  const activeNotes = notes.filter(n => n.status === 'ativa').length;
+  const cancelledNotes = notes.filter(n => n.status === 'cancelada').length;
+  const linkedNotes = notes.filter(n => n.receipt_id).length;
+
+  doc.setFillColor(240, 249, 255);
+  doc.roundedRect(14, 40, pageWidth - 28, 22, 3, 3, 'F');
+
+  doc.setFontSize(8);
+  doc.setTextColor(100);
+  doc.text('Total Gasto', 20, 47);
+  doc.setFontSize(13);
+  doc.setTextColor(0);
+  doc.text(formatCurrencyBR(totalValue), 20, 56);
+
+  doc.setFontSize(8);
+  doc.setTextColor(100);
+  doc.text('Qtd. Notas', 75, 47);
+  doc.setFontSize(13);
+  doc.setTextColor(0);
+  doc.text(`${notes.length}`, 75, 56);
+
+  doc.setFontSize(8);
+  doc.setTextColor(100);
+  doc.text('Ativas / Canceladas', 115, 47);
+  doc.setFontSize(13);
+  doc.setTextColor(0);
+  doc.text(`${activeNotes} / ${cancelledNotes}`, 115, 56);
+
+  doc.setFontSize(8);
+  doc.setTextColor(100);
+  doc.text('Vinculadas', 165, 47);
+  doc.setFontSize(13);
+  doc.setTextColor(0);
+  doc.text(`${linkedNotes}`, 165, 56);
+
+  let yPos = 70;
+
+  if (categorySummary.length > 0) {
+    doc.setFontSize(11);
+    doc.setTextColor(0);
+    doc.setFont(undefined as any, 'bold');
+    doc.text('Resumo por Categoria', 14, yPos);
+    doc.setFont(undefined as any, 'normal');
+    yPos += 3;
+
+    const catTableData = categorySummary.map(item => [
+      item.category.name,
+      `${item.count}`,
+      formatCurrencyBR(item.total),
+      totalValue > 0 ? `${((item.total / totalValue) * 100).toFixed(1)}%` : '0%',
+    ]);
+
+    doc.autoTable({
+      startY: yPos,
+      head: [['Categoria', 'Qtd', 'Valor', '% do Total']],
+      body: catTableData,
+      theme: 'striped',
+      headStyles: { fillColor: [2, 132, 199], fontSize: 8 },
+      bodyStyles: { fontSize: 8 },
+      columnStyles: {
+        0: { cellWidth: 60 },
+        1: { cellWidth: 20, halign: 'center' as const },
+        2: { cellWidth: 45, halign: 'right' as const },
+        3: { cellWidth: 30, halign: 'center' as const },
+      },
+      margin: { left: 14, right: 14 },
+    });
+
+    yPos = (doc as any).lastAutoTable.finalY + 10;
+  }
+
+  if (yPos > 250) {
+    doc.addPage();
+    yPos = 20;
+  }
+
+  doc.setFontSize(11);
+  doc.setTextColor(0);
+  doc.setFont(undefined as any, 'bold');
+  doc.text('Detalhamento das Notas', 14, yPos);
+  doc.setFont(undefined as any, 'normal');
+  yPos += 3;
+
+  const getCatName = (note: SefazNote) => {
+    if (note.category_id) {
+      return categories.find(c => c.id === note.category_id)?.name || '-';
+    }
+    return '-';
+  };
+
+  const notesTableData = notes.map(note => [
+    formatDateBR(note.data_emissao),
+    (note.emitente_nome || '-').substring(0, 30),
+    note.numero_nota || '-',
+    note.status === 'ativa' ? 'Ativa' : note.status === 'cancelada' ? 'Cancelada' : note.status || '-',
+    getCatName(note),
+    formatCurrencyBR(note.valor_total),
+  ]);
+
+  doc.autoTable({
+    startY: yPos,
+    head: [['Data', 'Emitente', 'Nº', 'Status', 'Categoria', 'Valor']],
+    body: notesTableData,
+    theme: 'striped',
+    headStyles: { fillColor: [2, 132, 199], fontSize: 7 },
+    bodyStyles: { fontSize: 7 },
+    columnStyles: {
+      0: { cellWidth: 22 },
+      1: { cellWidth: 55 },
+      2: { cellWidth: 18, halign: 'center' as const },
+      3: { cellWidth: 22, halign: 'center' as const },
+      4: { cellWidth: 30 },
+      5: { cellWidth: 28, halign: 'right' as const },
+    },
+    margin: { left: 14, right: 14 },
+    didDrawPage: (data: any) => {
+      const footY = doc.internal.pageSize.getHeight() - 6;
+      doc.setFontSize(6);
+      doc.setTextColor(150);
+      doc.text('Relatório gerado pelo NotasCD - Gestão Inteligente de Notas Fiscais', pageWidth / 2, footY, { align: 'center' });
+    },
+  });
+
+  const footerY = doc.internal.pageSize.getHeight() - 6;
+  doc.setFontSize(6);
+  doc.setTextColor(150);
+  doc.text('Relatório gerado pelo NotasCD - Gestão Inteligente de Notas Fiscais', pageWidth / 2, footerY, { align: 'center' });
+
+  const safeLocation = location.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+  doc.save(`relatorio_sefaz_${safeLocation}_${new Date().toISOString().slice(0, 10)}.pdf`);
+};

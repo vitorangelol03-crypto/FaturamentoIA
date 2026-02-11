@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { RefreshCw, Download, Search, FileText, Eye, AlertCircle, CheckCircle, X, Clock, Filter, XCircle, Calendar, Tag } from 'lucide-react';
 import { User, SefazNote, SefazDocZip, Category } from '../types';
 import { syncSefazNotes, getSefazNotes, saveSefazNote, getLastNSU, updateLastNSU, linkReceiptsToSefazNotes } from '../services/sefazService';
-import { generateDanfePDF } from '../services/pdfService';
+import { generateDanfePDF, generateSefazReportPDF } from '../services/pdfService';
 import { clsx } from 'clsx';
 
 interface SefazMonitorProps {
@@ -273,6 +273,32 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categor
     return Array.from(map.values()).sort((a, b) => b.total - a.total);
   }, [filteredNotes, categories]);
 
+  const getPeriodLabel = (): string => {
+    const now = new Date();
+    const monthNames = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+    if (periodFilter === 'current_month') {
+      return `${monthNames[now.getMonth()]} ${now.getFullYear()}`;
+    }
+    if (periodFilter === 'last_month') {
+      const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      return `${monthNames[prev.getMonth()]} ${prev.getFullYear()}`;
+    }
+    if (periodFilter === 'custom') {
+      const from = dateStart || '...';
+      const to = dateEnd || '...';
+      return `${from} a ${to}`;
+    }
+    return 'Todos os períodos';
+  };
+
+  const handleDownloadReport = () => {
+    if (filteredNotes.length === 0) {
+      alert('Nenhuma nota para incluir no relatório.');
+      return;
+    }
+    generateSefazReportPDF(filteredNotes, categories, userLocation, getPeriodLabel(), categorySummary);
+  };
+
   const getStatusBadge = (status?: string) => {
     switch (status) {
       case 'ativa':
@@ -313,19 +339,34 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categor
           <FileText size={20} className="text-brand-600" />
           Monitor SEFAZ - {userLocation}
         </h2>
-        <button
-          onClick={handleSync}
-          disabled={syncing}
-          className={clsx(
-            "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all shadow-sm",
-            syncing
-              ? "bg-gray-200 text-gray-500 cursor-not-allowed"
-              : "bg-brand-600 text-white hover:bg-brand-700 active:scale-95"
-          )}
-        >
-          <RefreshCw size={16} className={clsx(syncing && "animate-spin")} />
-          {syncing ? 'Sincronizando...' : 'Sincronizar'}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleDownloadReport}
+            disabled={filteredNotes.length === 0}
+            className={clsx(
+              "flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold transition-all shadow-sm",
+              filteredNotes.length === 0
+                ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                : "bg-white border border-brand-200 text-brand-600 hover:bg-brand-50 active:scale-95"
+            )}
+          >
+            <Download size={16} />
+            <span className="hidden sm:inline">Relatório</span>
+          </button>
+          <button
+            onClick={handleSync}
+            disabled={syncing}
+            className={clsx(
+              "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all shadow-sm",
+              syncing
+                ? "bg-gray-200 text-gray-500 cursor-not-allowed"
+                : "bg-brand-600 text-white hover:bg-brand-700 active:scale-95"
+            )}
+          >
+            <RefreshCw size={16} className={clsx(syncing && "animate-spin")} />
+            {syncing ? 'Sincronizando...' : 'Sincronizar'}
+          </button>
+        </div>
       </div>
 
       <div className="bg-white rounded-xl border border-gray-100 p-3 space-y-1 shadow-sm">
