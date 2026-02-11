@@ -265,7 +265,7 @@ const formatCurrencyBR = (value?: number) => {
   return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 };
 
-export const generateDanfePDF = (note: SefazNote) => {
+export const generateDanfePDF = (note: SefazNote, linkedReceiptImageUrl?: string) => {
   if (!window.jspdf) {
     alert("Biblioteca PDF não carregada. Verifique sua conexão.");
     return;
@@ -400,10 +400,49 @@ export const generateDanfePDF = (note: SefazNote) => {
     }
   }
 
-  const footerY = doc.internal.pageSize.getHeight() - 8;
-  doc.setFontSize(6);
-  doc.setTextColor(150);
-  doc.text('Documento gerado pelo NotasCD - Gestão Inteligente de Notas Fiscais', pageWidth / 2, footerY, { align: 'center' });
+  if (linkedReceiptImageUrl) {
+    doc.addPage();
+    const pgW = doc.internal.pageSize.getWidth();
+
+    doc.setFillColor(240, 249, 255);
+    doc.rect(0, 0, pgW, 18, 'F');
+    doc.setFontSize(11);
+    doc.setTextColor(2, 132, 199);
+    doc.setFont(undefined as any, 'bold');
+    doc.text('COMPROVANTE DIGITALIZADO (RECIBO MANUAL)', pgW / 2, 12, { align: 'center' });
+    doc.setFont(undefined as any, 'normal');
+
+    try {
+      const imgProps = doc.getImageProperties(linkedReceiptImageUrl);
+      const maxW = pgW - 28;
+      const maxH = doc.internal.pageSize.getHeight() - 40;
+      let imgW = maxW;
+      let imgH = (imgProps.height * imgW) / imgProps.width;
+      if (imgH > maxH) {
+        imgH = maxH;
+        imgW = (imgProps.width * imgH) / imgProps.height;
+      }
+      const xOffset = (pgW - imgW) / 2;
+      doc.addImage(linkedReceiptImageUrl, 'JPEG', xOffset, 22, imgW, imgH, undefined, 'FAST');
+    } catch (e) {
+      doc.setFontSize(9);
+      doc.setTextColor(150);
+      doc.text('Não foi possível carregar a imagem do recibo.', pgW / 2, 30, { align: 'center' });
+      console.error('Erro ao adicionar imagem ao DANFE:', e);
+    }
+  }
+
+  const addFooter = () => {
+    const fY = doc.internal.pageSize.getHeight() - 8;
+    doc.setFontSize(6);
+    doc.setTextColor(150);
+    doc.text('Documento gerado pelo NotasCD - Gestão Inteligente de Notas Fiscais', pageWidth / 2, fY, { align: 'center' });
+  };
+  const pageCount = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    addFooter();
+  }
 
   const fileName = `DANFE_${note.numero_nota || note.nsu || 'nota'}_${(note.emitente_nome || 'emitente').replace(/[^a-z0-9]/gi, '_').substring(0, 20)}.pdf`;
   doc.save(fileName);
@@ -414,7 +453,8 @@ export const generateSefazReportPDF = (
   categories: { id: string; name: string; color: string }[],
   location: string,
   periodLabel: string,
-  categorySummary: { category: { name: string; color: string }; total: number; count: number }[]
+  categorySummary: { category: { name: string; color: string }; total: number; count: number }[],
+  linkedReceiptImages?: Map<string, string>
 ) => {
   if (!window.jspdf) {
     alert("Biblioteca PDF não carregada. Verifique sua conexão.");
@@ -567,6 +607,60 @@ export const generateSefazReportPDF = (
   doc.setFontSize(6);
   doc.setTextColor(150);
   doc.text('Relatório gerado pelo NotasCD - Gestão Inteligente de Notas Fiscais', pageWidth / 2, footerY, { align: 'center' });
+
+  if (linkedReceiptImages && linkedReceiptImages.size > 0) {
+    const linkedNotes = notes.filter(n => n.receipt_id && linkedReceiptImages.has(n.receipt_id));
+    for (const note of linkedNotes) {
+      const imgUrl = linkedReceiptImages.get(note.receipt_id!);
+      if (!imgUrl) continue;
+
+      doc.addPage();
+      let yImg = 14;
+
+      doc.setFillColor(240, 249, 255);
+      doc.rect(0, 0, pageWidth, 28, 'F');
+      doc.setFontSize(9);
+      doc.setTextColor(2, 132, 199);
+      doc.setFont(undefined as any, 'bold');
+      doc.text('COMPROVANTE VINCULADO', 14, 10);
+      doc.setFont(undefined as any, 'normal');
+      doc.setTextColor(0);
+      doc.setFontSize(8);
+      doc.text(`${note.emitente_nome || '-'} | Nº ${note.numero_nota || '-'} | ${formatDateBR(note.data_emissao)} | ${formatCurrencyBR(note.valor_total)}`, 14, 18);
+      doc.setFontSize(7);
+      doc.setTextColor(100);
+      doc.text(`Chave: ${note.chave_acesso || '-'}`, 14, 24);
+      yImg = 32;
+
+      try {
+        const imgProps = doc.getImageProperties(imgUrl);
+        const maxW = pageWidth - 28;
+        const maxH = doc.internal.pageSize.getHeight() - yImg - 15;
+        let imgW = maxW;
+        let imgH = (imgProps.height * imgW) / imgProps.width;
+        if (imgH > maxH) {
+          imgH = maxH;
+          imgW = (imgProps.width * imgH) / imgProps.height;
+        }
+        const xOffset = (pageWidth - imgW) / 2;
+        doc.addImage(imgUrl, 'JPEG', xOffset, yImg, imgW, imgH, undefined, 'FAST');
+      } catch (e) {
+        doc.setFontSize(9);
+        doc.setTextColor(150);
+        doc.text('Não foi possível carregar a imagem do recibo.', pageWidth / 2, yImg + 10, { align: 'center' });
+        console.error('Erro ao adicionar imagem ao relatório:', e);
+      }
+    }
+  }
+
+  const pageCount = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    const footY2 = doc.internal.pageSize.getHeight() - 6;
+    doc.setFontSize(6);
+    doc.setTextColor(150);
+    doc.text('Relatório gerado pelo NotasCD - Gestão Inteligente de Notas Fiscais', pageWidth / 2, footY2, { align: 'center' });
+  }
 
   const safeLocation = location.replace(/[^a-z0-9]/gi, '_').toLowerCase();
   doc.save(`relatorio_sefaz_${safeLocation}_${new Date().toISOString().slice(0, 10)}.pdf`);

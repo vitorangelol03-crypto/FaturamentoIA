@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { RefreshCw, Download, Search, FileText, Eye, AlertCircle, CheckCircle, X, Clock, Filter, XCircle, Calendar, Tag, ArrowLeftRight } from 'lucide-react';
 import { User, SefazNote, SefazDocZip, Category } from '../types';
-import { syncSefazNotes, getSefazNotes, saveSefazNote, getLastNSU, updateLastNSU, linkReceiptsToSefazNotes } from '../services/sefazService';
+import { syncSefazNotes, getSefazNotes, saveSefazNote, getLastNSU, updateLastNSU, linkReceiptsToSefazNotes, getLinkedReceiptImages } from '../services/sefazService';
 import { generateDanfePDF, generateSefazReportPDF } from '../services/pdfService';
 import { clsx } from 'clsx';
 
@@ -516,12 +516,36 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categor
     return 'Todos os períodos';
   };
 
-  const handleDownloadReport = () => {
+  const handleDownloadReport = async () => {
     if (filteredNotes.length === 0) {
       alert('Nenhuma nota para incluir no relatório.');
       return;
     }
-    generateSefazReportPDF(filteredNotes, categories, activeLocation, getPeriodLabel(), categorySummary);
+    const receiptIds = filteredNotes
+      .filter(n => n.receipt_id)
+      .map(n => n.receipt_id!);
+    let linkedImages: Map<string, string> | undefined;
+    if (receiptIds.length > 0) {
+      try {
+        linkedImages = await getLinkedReceiptImages(receiptIds);
+      } catch (e) {
+        console.error('Erro ao buscar imagens dos recibos:', e);
+      }
+    }
+    generateSefazReportPDF(filteredNotes, categories, activeLocation, getPeriodLabel(), categorySummary, linkedImages);
+  };
+
+  const handleDownloadSinglePDF = async (note: SefazNote) => {
+    let imageUrl: string | undefined;
+    if (note.receipt_id) {
+      try {
+        const images = await getLinkedReceiptImages([note.receipt_id]);
+        imageUrl = images.get(note.receipt_id);
+      } catch (e) {
+        console.error('Erro ao buscar imagem do recibo vinculado:', e);
+      }
+    }
+    generateDanfePDF(note, imageUrl);
   };
 
   const getStatusBadge = (status?: string) => {
@@ -832,7 +856,7 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categor
             </div>
             <div className="p-4 border-t flex gap-2">
               <button
-                onClick={() => { generateDanfePDF(viewingXml); }}
+                onClick={() => { handleDownloadSinglePDF(viewingXml); }}
                 className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-brand-600 text-white rounded-xl text-sm font-semibold hover:bg-brand-700 transition-colors"
               >
                 <Download size={14} /> Baixar PDF

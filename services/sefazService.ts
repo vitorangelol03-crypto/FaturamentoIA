@@ -139,6 +139,26 @@ export async function linkReceiptsToSefazNotes(location: string = 'Caratinga'): 
   return { linked: linkedCount };
 }
 
+export async function getLinkedReceiptImages(receiptIds: string[]): Promise<Map<string, string>> {
+  const imageMap = new Map<string, string>();
+  if (!receiptIds.length) return imageMap;
+
+  const { data, error } = await supabase
+    .from('receipts')
+    .select('id, image_url')
+    .in('id', receiptIds)
+    .not('image_url', 'is', null);
+
+  if (!error && data) {
+    for (const r of data) {
+      if (r.image_url) {
+        imageMap.set(r.id, r.image_url);
+      }
+    }
+  }
+  return imageMap;
+}
+
 export async function linkSingleReceipt(accessKey: string, receiptId: string, location: string): Promise<boolean> {
   if (!accessKey) return false;
   const cleanKey = accessKey.replace(/\D/g, '');
