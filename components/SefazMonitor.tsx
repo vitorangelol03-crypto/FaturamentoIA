@@ -538,100 +538,79 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categor
   };
 
   return (
-    <div className="p-4 space-y-4">
+    <div className="p-3 space-y-3">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
-          <FileText size={20} className="text-brand-600" />
-          Monitor SEFAZ - {userLocation}
-        </h2>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <FileText size={16} className="text-brand-600 flex-shrink-0" />
+          <h2 className="text-sm font-bold text-gray-800 truncate">SEFAZ {userLocation}</h2>
+          <span className="text-[10px] text-gray-400 flex-shrink-0">{notes.length} notas</span>
+        </div>
+        <div className="flex items-center gap-1.5 flex-shrink-0">
           <button
             onClick={handleDownloadReport}
             disabled={filteredNotes.length === 0}
             className={clsx(
-              "flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold transition-all shadow-sm",
+              "p-2 rounded-lg transition-all",
               filteredNotes.length === 0
-                ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-                : "bg-white border border-brand-200 text-brand-600 hover:bg-brand-50 active:scale-95"
+                ? "text-gray-300 cursor-not-allowed"
+                : "text-brand-600 hover:bg-brand-50 active:scale-95"
             )}
+            title="Baixar relatório PDF"
           >
-            <Download size={16} />
-            <span className="hidden sm:inline">Relatório</span>
+            <Download size={18} />
           </button>
           <button
             onClick={handleSync}
             disabled={syncing}
             className={clsx(
-              "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all shadow-sm",
+              "p-2 rounded-lg transition-all",
               syncing
-                ? "bg-gray-200 text-gray-500 cursor-not-allowed"
-                : "bg-brand-600 text-white hover:bg-brand-700 active:scale-95"
+                ? "text-gray-400 cursor-not-allowed"
+                : "text-brand-600 hover:bg-brand-50 active:scale-95"
             )}
+            title="Sincronizar com SEFAZ"
           >
-            <RefreshCw size={16} className={clsx(syncing && "animate-spin")} />
-            {syncing ? 'Sincronizando...' : 'Sincronizar'}
+            <RefreshCw size={18} className={clsx(syncing && "animate-spin")} />
           </button>
-        </div>
-      </div>
-
-      <div className="bg-white rounded-xl border border-gray-100 p-3 space-y-1 shadow-sm">
-        <div className="flex justify-between text-xs text-gray-500">
-          <span>Último NSU: <strong className="text-gray-700">{lastNSU}</strong></span>
-          {maxNSU && <span>Max NSU: <strong className="text-gray-700">{maxNSU}</strong></span>}
-        </div>
-        {lastSyncTime && (
-          <div className="text-xs text-gray-400 flex items-center gap-1">
-            <Clock size={10} /> Última sync: {lastSyncTime}
-          </div>
-        )}
-        <div className="text-xs text-gray-500">
-          Total de notas: <strong className="text-gray-700">{notes.length}</strong>
         </div>
       </div>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-xl p-3 flex items-start gap-2">
-          <AlertCircle size={16} className="text-red-500 mt-0.5 flex-shrink-0" />
-          <div className="text-sm text-red-700">{error}</div>
-          <button onClick={() => setError(null)} className="ml-auto text-red-400 hover:text-red-600">
-            <X size={14} />
-          </button>
+        <div className="bg-red-50 rounded-lg px-3 py-2 flex items-center gap-2">
+          <AlertCircle size={14} className="text-red-500 flex-shrink-0" />
+          <span className="text-xs text-red-700 flex-1">{error}</span>
+          <button onClick={() => setError(null)} className="text-red-400"><X size={12} /></button>
         </div>
       )}
 
       {successMsg && (
-        <div className="bg-green-50 border border-green-200 rounded-xl p-3 flex items-start gap-2">
-          <CheckCircle size={16} className="text-green-500 mt-0.5 flex-shrink-0" />
-          <div className="text-sm text-green-700">{successMsg}</div>
-          <button onClick={() => setSuccessMsg(null)} className="ml-auto text-green-400 hover:text-green-600">
-            <X size={14} />
-          </button>
+        <div className="bg-green-50 rounded-lg px-3 py-2 flex items-center gap-2">
+          <CheckCircle size={14} className="text-green-500 flex-shrink-0" />
+          <span className="text-xs text-green-700 flex-1">{successMsg}</span>
+          <button onClick={() => setSuccessMsg(null)} className="text-green-400"><X size={12} /></button>
         </div>
       )}
 
-      <div className="flex items-center gap-2">
-        <Calendar size={14} className="text-gray-400 flex-shrink-0" />
-        <div className="flex gap-1 flex-1 overflow-x-auto">
-          {[
-            { key: 'current_month' as PeriodOption, label: 'Este mês' },
-            { key: 'last_month' as PeriodOption, label: 'Mês passado' },
-            { key: 'custom' as PeriodOption, label: 'Personalizado' },
-            { key: 'all' as PeriodOption, label: 'Todos' },
-          ].map(opt => (
-            <button
-              key={opt.key}
-              onClick={() => setPeriodFilter(opt.key)}
-              className={clsx(
-                "px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors",
-                periodFilter === opt.key
-                  ? "bg-brand-600 text-white"
-                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-              )}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
+      <div className="flex gap-1 overflow-x-auto pb-0.5">
+        {[
+          { key: 'current_month' as PeriodOption, label: 'Este mês' },
+          { key: 'last_month' as PeriodOption, label: 'Mês passado' },
+          { key: 'custom' as PeriodOption, label: 'Período' },
+          { key: 'all' as PeriodOption, label: 'Todos' },
+        ].map(opt => (
+          <button
+            key={opt.key}
+            onClick={() => setPeriodFilter(opt.key)}
+            className={clsx(
+              "px-2.5 py-1 rounded-full text-[11px] font-medium whitespace-nowrap transition-colors",
+              periodFilter === opt.key
+                ? "bg-brand-600 text-white"
+                : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+            )}
+          >
+            {opt.label}
+          </button>
+        ))}
       </div>
 
       {periodFilter === 'custom' && (
@@ -666,31 +645,29 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categor
       )}
 
       <div className="relative">
-        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+        <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
         <input
           type="text"
-          placeholder="Buscar por emitente, CNPJ ou chave..."
+          placeholder="Buscar emitente, CNPJ..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent bg-white"
+          className="w-full pl-8 pr-3 py-2 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-1 focus:ring-brand-500 bg-white"
         />
       </div>
 
       {filteredNotes.length > 0 && (
-        <div className="bg-white rounded-xl border border-gray-100 p-3 shadow-sm space-y-2">
+        <div className="bg-gray-50 rounded-lg px-3 py-2 space-y-1.5">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-gray-500 flex items-center gap-1">
-              <Tag size={12} /> Gastos por Categoria
-            </span>
-            <span className="text-sm font-bold text-brand-600">{formatCurrency(totalFiltered)}</span>
+            <span className="text-[10px] font-semibold text-gray-400 uppercase">Categorias</span>
+            <span className="text-xs font-bold text-brand-600">{formatCurrency(totalFiltered)}</span>
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-1">
             {categorySummary.map(item => (
-              <div key={item.category.name} className="flex items-center gap-2">
-                <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: item.category.color }} />
-                <span className="text-xs text-gray-700 flex-1 truncate">{item.category.name}</span>
-                <span className="text-[10px] text-gray-400">{item.count}x</span>
-                <span className="text-xs font-semibold text-gray-800 min-w-[80px] text-right">{formatCurrency(item.total)}</span>
+              <div key={item.category.name} className="flex items-center gap-1.5">
+                <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: item.category.color }} />
+                <span className="text-[11px] text-gray-600 flex-1 truncate">{item.category.name}</span>
+                <span className="text-[10px] text-gray-400">{item.count}</span>
+                <span className="text-[11px] font-semibold text-gray-700 min-w-[70px] text-right">{formatCurrency(item.total)}</span>
               </div>
             ))}
           </div>
@@ -698,38 +675,34 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categor
       )}
 
       {loading ? (
-        <div className="flex flex-col items-center justify-center py-12 text-gray-400">
-          <RefreshCw size={24} className="animate-spin mb-2" />
-          <span className="text-sm">Carregando notas...</span>
+        <div className="flex flex-col items-center justify-center py-10 text-gray-400">
+          <RefreshCw size={20} className="animate-spin mb-2" />
+          <span className="text-xs">Carregando...</span>
         </div>
       ) : filteredNotes.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-12 text-gray-400">
-          <FileText size={32} className="mb-2 opacity-40" />
-          <span className="text-sm font-medium">Nenhuma nota encontrada</span>
-          <span className="text-xs mt-1">Clique em "Sincronizar" para buscar notas da SEFAZ</span>
+        <div className="flex flex-col items-center justify-center py-10 text-gray-400">
+          <FileText size={28} className="mb-2 opacity-40" />
+          <span className="text-xs font-medium">Nenhuma nota encontrada</span>
+          <span className="text-[10px] mt-1">Toque no ícone de sync para buscar</span>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-2">
           {filteredNotes.map((note, idx) => {
             const noteCat = getCategoryForNote(note);
             return (
-              <div key={note.id || idx} className="bg-white rounded-xl border border-gray-100 p-3 shadow-sm space-y-2">
-                <div className="flex items-start justify-between">
+              <div key={note.id || idx} className="bg-white rounded-lg border border-gray-100 px-3 py-2.5 space-y-1.5">
+                <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
-                    <div className="font-semibold text-sm text-gray-800 truncate">
+                    <div className="font-semibold text-xs text-gray-800 truncate">
                       {note.emitente_nome || 'Emitente não identificado'}
-                    </div>
-                    <div className="text-xs text-gray-500 mt-0.5">
-                      {note.emitente_cnpj ? `CNPJ: ${note.emitente_cnpj}` : ''}
                     </div>
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0">
                     {noteCat && (
                       <span
-                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold"
-                        style={{ backgroundColor: noteCat.color + '20', color: noteCat.color }}
+                        className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-semibold"
+                        style={{ backgroundColor: noteCat.color + '18', color: noteCat.color }}
                       >
-                        <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: noteCat.color }} />
                         {noteCat.name}
                       </span>
                     )}
@@ -737,47 +710,33 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categor
                   </div>
                 </div>
 
-                <div className="flex items-center gap-4 text-xs text-gray-600">
-                  {note.numero_nota && (
-                    <span>Nº <strong>{note.numero_nota}</strong>{note.serie ? `/${note.serie}` : ''}</span>
-                  )}
-                  <span>{formatDate(note.data_emissao)}</span>
-                  {note.valor_total !== undefined && note.valor_total !== null && (
-                    <span className="font-bold text-brand-600">{formatCurrency(note.valor_total)}</span>
-                  )}
-                </div>
-
-                <div className="text-[10px] text-gray-400 font-mono">
-                  {truncateChave(note.chave_acesso)}
-                </div>
-
-                {note.nsu && (
-                  <div className="text-[10px] text-gray-400">
-                    NSU: {note.nsu}
+                <div className="flex items-center justify-between text-[11px] text-gray-500">
+                  <div className="flex items-center gap-3">
+                    <span>{formatDate(note.data_emissao)}</span>
+                    {note.numero_nota && <span>Nº {note.numero_nota}</span>}
+                    {note.receipt_id ? (
+                      <CheckCircle size={10} className="text-green-500" />
+                    ) : (
+                      <AlertCircle size={10} className="text-amber-400" />
+                    )}
                   </div>
-                )}
-
-                <div className="flex items-center gap-2 pt-1 border-t border-gray-50">
-                  {note.receipt_id ? (
-                    <span className="inline-flex items-center gap-1 px-2 py-1.5 text-xs font-medium text-green-600 bg-green-50 rounded-lg">
-                      <CheckCircle size={12} /> Vinculada
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 px-2 py-1.5 text-xs font-medium text-amber-600 bg-amber-50 rounded-lg">
-                      <AlertCircle size={12} /> Sem recibo
-                    </span>
+                  {note.valor_total !== undefined && note.valor_total !== null && (
+                    <span className="font-bold text-sm text-gray-800">{formatCurrency(note.valor_total)}</span>
                   )}
+                </div>
+
+                <div className="flex items-center gap-1.5 pt-1">
                   <button
                     onClick={() => setViewingXml(note)}
-                    className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-brand-600 bg-brand-50 rounded-lg hover:bg-brand-100 transition-colors"
+                    className="flex items-center gap-1 px-2 py-1 text-[10px] font-medium text-brand-600 bg-brand-50 rounded-md hover:bg-brand-100 transition-colors"
                   >
-                    <Eye size={12} /> Detalhes
+                    <Eye size={10} /> Detalhes
                   </button>
                   <button
                     onClick={() => generateDanfePDF(note)}
-                    className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-green-600 bg-green-50 rounded-lg hover:bg-green-100 transition-colors"
+                    className="flex items-center gap-1 px-2 py-1 text-[10px] font-medium text-gray-500 bg-gray-50 rounded-md hover:bg-gray-100 transition-colors"
                   >
-                    <Download size={12} /> Baixar PDF
+                    <Download size={10} /> PDF
                   </button>
                 </div>
               </div>
