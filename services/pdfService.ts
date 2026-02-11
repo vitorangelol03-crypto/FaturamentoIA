@@ -1,13 +1,72 @@
 import { Receipt, Category, SefazNote } from '../types';
 
-// Declare jsPDF types globally since we are loading from CDN
 declare global {
   interface Window {
     jspdf: any;
   }
 }
 
-export const generateSingleReceiptPDF = (receipt: Receipt, categoryName: string) => {
+async function fetchImageAsBlob(url: string): Promise<string> {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const blob = await response.blob();
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+function canvasConvert(imgSrc: string, quality: number): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          reject(new Error('Não foi possível criar contexto canvas'));
+          return;
+        }
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0);
+        const jpegDataUrl = canvas.toDataURL('image/jpeg', quality);
+        resolve(jpegDataUrl);
+      } catch (e) {
+        reject(e);
+      }
+    };
+
+    img.onerror = () => reject(new Error('Falha ao carregar imagem no canvas'));
+    img.src = imgSrc;
+  });
+}
+
+async function convertImageToJpegBase64(src: string, quality: number = 0.85): Promise<string> {
+  if (src.startsWith('data:image/jpeg') || src.startsWith('data:image/jpg')) {
+    return src;
+  }
+
+  if (src.startsWith('data:')) {
+    return canvasConvert(src, quality);
+  }
+
+  try {
+    return await canvasConvert(src, quality);
+  } catch (_corsErr) {
+    console.warn('Canvas CORS falhou, tentando fetch como blob...');
+    const blobDataUri = await fetchImageAsBlob(src);
+    return canvasConvert(blobDataUri, quality);
+  }
+}
+
+export const generateSingleReceiptPDF = async (receipt: Receipt, categoryName: string) => {
     if (!window.jspdf) {
         alert("PDF library not loaded. Please check your internet connection.");
         return;
@@ -94,28 +153,29 @@ export const generateSingleReceiptPDF = (receipt: Receipt, categoryName: string)
         yPos += 10;
     }
 
-    // -- Receipt Image --
     if (receipt.image_url) {
         doc.setFontSize(14);
         doc.setFont(undefined, 'bold');
         doc.text("Comprovante Anexo", 14, yPos);
         yPos += 5;
         
-        // Add image (try to fit within page bounds)
         try {
-            const imgProps = doc.getImageProperties(receipt.image_url);
+            const jpegData = await convertImageToJpegBase64(receipt.image_url);
+            const imgProps = doc.getImageProperties(jpegData);
             const pdfWidth = doc.internal.pageSize.getWidth() - 28;
             const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
             
-            // If image is too tall for remaining page, add new page
             if (yPos + pdfHeight > 280) {
                 doc.addPage();
                 yPos = 20;
             }
 
-            doc.addImage(receipt.image_url, 'JPEG', 14, yPos, pdfWidth, pdfHeight, undefined, 'FAST');
+            doc.addImage(jpegData, 'JPEG', 14, yPos, pdfWidth, pdfHeight, undefined, 'FAST');
         } catch (e) {
-            console.error("Error adding image single PDF", e);
+            console.error("Erro ao converter/adicionar imagem ao PDF:", e);
+            doc.setFontSize(9);
+            doc.setTextColor(150);
+            doc.text('[Não foi possível carregar a imagem]', 14, yPos + 5);
         }
     }
 
@@ -124,7 +184,7 @@ export const generateSingleReceiptPDF = (receipt: Receipt, categoryName: string)
     doc.save(`${cleanName}_${receipt.date}.pdf`);
 };
 
-export const generatePDFReport = (
+export const generatePDFReport = async (
   receipts: Receipt[], 
   categories: Category[], 
   startDate: string, 
@@ -206,29 +266,27 @@ export const generatePDFReport = (
     doc.text("Anexos - Notas Fiscais", 14, 20);
     let yPos = 30;
     
-    receipts.forEach((r, index) => {
+    for (let index = 0; index < receipts.length; index++) {
+       const r = receipts[index];
        if (r.image_url) {
-           // Basic check if it fits on page, else new page
            if (yPos > 250) {
                doc.addPage();
                yPos = 20;
            }
            
            try {
+               const jpegData = await convertImageToJpegBase64(r.image_url);
                doc.setFontSize(10);
                doc.text(`Nota #${index + 1}: ${r.establishment} - ${r.date}`, 14, yPos);
-               // Assuming image_url is a Base64 string from DB or cache
-               // If it's a URL, jsPDF might need it converted to base64. 
-               // For this demo, we assume the app stores base64 data URIs mostly.
-               doc.addImage(r.image_url, 'JPEG', 14, yPos + 5, 80, 100, undefined, 'FAST'); 
+               doc.addImage(jpegData, 'JPEG', 14, yPos + 5, 80, 100, undefined, 'FAST'); 
                yPos += 115;
            } catch (e) {
-               console.error("Error adding image to PDF", e);
+               console.error("Erro ao converter/adicionar imagem ao PDF:", e);
                doc.text(`[Erro ao carregar imagem para Nota #${index+1}]`, 14, yPos + 10);
                yPos += 20;
            }
        }
-    });
+    }
   }
 
   doc.save('relatorio_notas.pdf');
@@ -265,7 +323,7 @@ const formatCurrencyBR = (value?: number) => {
   return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 };
 
-export const generateDanfePDF = (note: SefazNote, linkedReceiptImageUrl?: string) => {
+export const generateDanfePDF = async (note: SefazNote, linkedReceiptImageUrl?: string) => {
   if (!window.jspdf) {
     alert("Biblioteca PDF não carregada. Verifique sua conexão.");
     return;
@@ -413,7 +471,8 @@ export const generateDanfePDF = (note: SefazNote, linkedReceiptImageUrl?: string
     doc.setFont(undefined as any, 'normal');
 
     try {
-      const imgProps = doc.getImageProperties(linkedReceiptImageUrl);
+      const jpegData = await convertImageToJpegBase64(linkedReceiptImageUrl);
+      const imgProps = doc.getImageProperties(jpegData);
       const maxW = pgW - 28;
       const maxH = doc.internal.pageSize.getHeight() - 40;
       let imgW = maxW;
@@ -423,7 +482,7 @@ export const generateDanfePDF = (note: SefazNote, linkedReceiptImageUrl?: string
         imgW = (imgProps.width * imgH) / imgProps.height;
       }
       const xOffset = (pgW - imgW) / 2;
-      doc.addImage(linkedReceiptImageUrl, 'JPEG', xOffset, 22, imgW, imgH, undefined, 'FAST');
+      doc.addImage(jpegData, 'JPEG', xOffset, 22, imgW, imgH, undefined, 'FAST');
     } catch (e) {
       doc.setFontSize(9);
       doc.setTextColor(150);
@@ -448,7 +507,7 @@ export const generateDanfePDF = (note: SefazNote, linkedReceiptImageUrl?: string
   doc.save(fileName);
 };
 
-export const generateSefazReportPDF = (
+export const generateSefazReportPDF = async (
   notes: SefazNote[],
   categories: { id: string; name: string; color: string }[],
   location: string,
@@ -633,7 +692,8 @@ export const generateSefazReportPDF = (
       yImg = 32;
 
       try {
-        const imgProps = doc.getImageProperties(imgUrl);
+        const jpegData = await convertImageToJpegBase64(imgUrl);
+        const imgProps = doc.getImageProperties(jpegData);
         const maxW = pageWidth - 28;
         const maxH = doc.internal.pageSize.getHeight() - yImg - 15;
         let imgW = maxW;
@@ -643,7 +703,7 @@ export const generateSefazReportPDF = (
           imgW = (imgProps.width * imgH) / imgProps.height;
         }
         const xOffset = (pageWidth - imgW) / 2;
-        doc.addImage(imgUrl, 'JPEG', xOffset, yImg, imgW, imgH, undefined, 'FAST');
+        doc.addImage(jpegData, 'JPEG', xOffset, yImg, imgW, imgH, undefined, 'FAST');
       } catch (e) {
         doc.setFontSize(9);
         doc.setTextColor(150);
