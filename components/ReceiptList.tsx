@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Receipt, Category, ViewMode, PeriodFilter, User } from '../types';
 import { 
   LayoutGrid, List, AlignJustify, Search, ChevronDown, ChevronUp, 
-  Image as ImageIcon, Filter, Edit2, X, Save, Loader2, Download, 
+  Image as ImageIcon, Filter, Edit2, X, Save, Loader2, Download, Trash2,
   Maximize2, Calendar, CreditCard, Tag, FileText, MapPin, Lock, CheckCircle,
   Clock, User as UserIcon, Shield, Activity, AlertCircle, FileDown
 } from 'lucide-react';
@@ -33,6 +33,8 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
   const [viewingReceipt, setViewingReceipt] = useState<Receipt | null>(null);
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [deletingReceiptId, setDeletingReceiptId] = useState<string | null>(null);
+  const [isDeletingReceipt, setIsDeletingReceipt] = useState(false);
 
   // Time-based editing logic
   const [currentTime, setCurrentTime] = useState(Date.now());
@@ -48,6 +50,22 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
     const createdTime = new Date(receipt.created_at).getTime();
     const diffMinutes = (currentTime - createdTime) / (1000 * 60);
     return diffMinutes <= 5;
+  };
+
+  const handleDeleteReceipt = async (receiptId: string) => {
+    setIsDeletingReceipt(true);
+    try {
+      await supabase.from('sefaz_notes').update({ receipt_id: null }).eq('receipt_id', receiptId);
+      const { error } = await supabase.from('receipts').delete().eq('id', receiptId);
+      if (error) throw error;
+      setDeletingReceiptId(null);
+      setViewingReceipt(null);
+      onRefresh?.();
+    } catch (err: any) {
+      alert('Erro ao excluir: ' + (err.message || 'Erro desconhecido'));
+    } finally {
+      setIsDeletingReceipt(false);
+    }
   };
 
   const getUserName = (userId?: string | null) => {
@@ -233,12 +251,36 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
                     </div>
                 </div>
                 <div className="flex-shrink-0 p-4 pb-[max(1rem,env(safe-area-inset-bottom,1rem))] border-t border-gray-100 bg-gray-50 flex gap-3">
-                     <button onClick={(e) => handleDownloadSingle(e, viewingReceipt)} className="flex-1 flex items-center justify-center gap-2 bg-white border border-gray-200 py-3 rounded-xl font-medium"><Download size={18} /> PDF</button>
+                     <button onClick={(e) => handleDownloadSingle(e, viewingReceipt)} className="flex items-center justify-center gap-2 bg-white border border-gray-200 py-3 px-4 rounded-xl font-medium"><Download size={18} /></button>
                      {canEditReceipt(viewingReceipt) ? (
                         <button onClick={(e) => { setViewingReceipt(null); setEditingReceipt(viewingReceipt); }} className="flex-1 flex items-center justify-center gap-2 bg-brand-600 text-white py-3 rounded-xl font-medium shadow-sm"><Edit2 size={18} /> Editar</button>
                     ) : (
                         <button disabled className="flex-1 flex items-center justify-center gap-2 bg-gray-100 text-gray-400 py-3 rounded-xl font-medium cursor-not-allowed"><Lock size={16} /> Bloqueado</button>
                     )}
+                    {isAdmin && (
+                        <button onClick={() => setDeletingReceiptId(viewingReceipt.id)} className="flex items-center justify-center gap-2 bg-red-50 border border-red-200 text-red-600 py-3 px-4 rounded-xl font-medium hover:bg-red-100 transition-colors"><Trash2 size={18} /></button>
+                    )}
+                </div>
+            </div>
+        </div>
+      )}
+
+      {/* --- MODAL: DELETE CONFIRMATION --- */}
+      {deletingReceiptId && (
+        <div className="fixed inset-0 z-[65] flex items-center justify-center bg-black/60 p-4 animate-in fade-in">
+            <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden">
+                <div className="p-6 text-center">
+                    <div className="w-14 h-14 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <Trash2 size={28} className="text-red-500" />
+                    </div>
+                    <h3 className="font-bold text-gray-900 text-lg mb-2">Excluir Nota</h3>
+                    <p className="text-gray-500 text-sm">Tem certeza que deseja excluir esta nota? Esta ação não pode ser desfeita.</p>
+                </div>
+                <div className="flex border-t border-gray-100">
+                    <button onClick={() => setDeletingReceiptId(null)} disabled={isDeletingReceipt} className="flex-1 py-3.5 text-gray-600 font-medium border-r border-gray-100 hover:bg-gray-50 transition-colors">Cancelar</button>
+                    <button onClick={() => handleDeleteReceipt(deletingReceiptId)} disabled={isDeletingReceipt} className="flex-1 py-3.5 text-red-600 font-bold hover:bg-red-50 transition-colors flex items-center justify-center gap-2">
+                        {isDeletingReceipt ? <><Loader2 size={16} className="animate-spin" /> Excluindo...</> : 'Excluir'}
+                    </button>
                 </div>
             </div>
         </div>
