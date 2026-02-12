@@ -350,16 +350,18 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, cur
       }
       
       const extractedCNPJ = rawData.cnpj ? rawData.cnpj.replace(/\D/g, '') : '';
-      const cleanRequiredCNPJ = REQUIRED_CNPJ.replace(/\D/g, '');
 
-      let determinedLocation = 'Ponte Nova'; 
+      const CNPJ_CARATINGA = REQUIRED_CNPJ.replace(/\D/g, '');
+      const CNPJ_PONTE_NOVA = '53824315000110';
+
+      let determinedLocation = currentUser.location || 'Caratinga';
       
-      if (isAdmin) {
-          if (extractedCNPJ === cleanRequiredCNPJ) {
+      if (isAdmin && extractedCNPJ) {
+          if (extractedCNPJ === CNPJ_CARATINGA) {
               determinedLocation = 'Caratinga';
+          } else if (extractedCNPJ === CNPJ_PONTE_NOVA) {
+              determinedLocation = 'Ponte Nova';
           }
-      } else {
-          determinedLocation = currentUser.location || 'Caratinga';
       }
 
       const matchedCategory = categories.find(c => 
