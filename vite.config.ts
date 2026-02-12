@@ -131,79 +131,20 @@ export default defineConfig({
           req.on('data', (chunk: Buffer) => { body += chunk.toString(); });
           req.on('end', async () => {
             try {
-              const { image, mimeType } = JSON.parse(body);
-              const apiKey = process.env.API_KEY;
-
-              if (!apiKey) {
-                res.writeHead(500, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ error: 'API_KEY not configured' }));
-                return;
-              }
-
-              const { GoogleGenAI, Type } = await import('@google/genai');
-              const ai = new GoogleGenAI({ apiKey });
-
-              const responseSchema = {
-                type: Type.OBJECT,
-                properties: {
-                  establishment: { type: Type.STRING, description: "Nome do estabelecimento" },
-                  date: { type: Type.STRING, description: "Data no formato YYYY-MM-DD" },
-                  total_amount: { type: Type.NUMBER, description: "Valor total numérico" },
-                  cnpj: { type: Type.STRING, description: "CNPJ apenas números" },
-                  receipt_number: { type: Type.STRING },
-                  payment_method: { type: Type.STRING },
-                  suggested_category: { type: Type.STRING },
-                  access_key: { type: Type.STRING, description: "Chave de acesso da NF-e com 44 dígitos numéricos, geralmente encontrada no rodapé ou QR code da nota" },
-                  items: {
-                    type: Type.ARRAY,
-                    items: {
-                      type: Type.OBJECT,
-                      properties: {
-                        name: { type: Type.STRING },
-                        quantity: { type: Type.NUMBER },
-                        unitPrice: { type: Type.NUMBER },
-                        totalPrice: { type: Type.NUMBER }
-                      }
-                    }
-                  }
-                },
-                required: ["establishment", "date", "total_amount"]
-              };
-
-              const result = await ai.models.generateContent({
-                model: 'gemini-flash-latest',
-                contents: [
-                  {
-                    parts: [
-                      { text: "Extraia os dados desta nota fiscal brasileira. Procure também a chave de acesso (44 dígitos numéricos geralmente no rodapé ou próximo ao QR code). Retorne apenas o JSON puro." },
-                      {
-                        inlineData: {
-                          mimeType: mimeType || 'image/jpeg',
-                          data: image
-                        }
-                      }
-                    ]
-                  }
-                ],
-                config: {
-                  responseMimeType: "application/json",
-                  responseSchema: responseSchema,
-                  temperature: 0.1
-                }
-              });
-
-              const resultText = result.text;
-              if (!resultText) {
-                throw new Error("Empty AI response.");
-              }
-
-              let cleanJson = resultText.trim();
-              if (cleanJson.startsWith('```')) {
-                cleanJson = cleanJson.replace(/^```[a-z]*\n/i, '').replace(/\n```$/g, '').trim();
-              }
-
-              res.writeHead(200, { 'Content-Type': 'application/json' });
-              res.end(cleanJson);
+              const parsedBody = JSON.parse(body);
+              const handler = (await import('./api/extract-invoice.js')).default;
+              const fakeReq = { method: 'POST', body: parsedBody } as any;
+              const fakeRes = {
+                setHeader: () => {},
+                status: (code: number) => ({
+                  json: (data: any) => {
+                    res.writeHead(code, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify(data));
+                  },
+                  end: () => { res.writeHead(code); res.end(); }
+                }),
+              } as any;
+              await handler(fakeReq, fakeRes);
             } catch (error: any) {
               console.error('API error:', error);
               res.writeHead(500, { 'Content-Type': 'application/json' });

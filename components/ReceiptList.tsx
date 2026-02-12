@@ -156,9 +156,20 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
                     <button onClick={() => setViewingReceipt(null)} className="text-gray-400 hover:text-gray-800 bg-white p-1 rounded-full border border-gray-200"><X size={20} /></button>
                 </div>
                 <div className="overflow-y-auto flex-1 min-h-0 p-0">
-                    <div className="relative h-48 bg-gray-100 flex items-center justify-center overflow-hidden group cursor-zoom-in" onClick={() => viewingReceipt.image_url && setZoomedImage(viewingReceipt.image_url)}>
+                    <div className="relative h-48 bg-gray-100 flex items-center justify-center overflow-hidden group cursor-zoom-in" onClick={() => {
+                      if (viewingReceipt.image_url && !viewingReceipt.image_url.startsWith('data:application/pdf')) {
+                        setZoomedImage(viewingReceipt.image_url);
+                      }
+                    }}>
                          {viewingReceipt.image_url ? (
-                            <img src={viewingReceipt.image_url} className="w-full h-full object-cover opacity-90 group-hover:opacity-100" alt="Comprovante" />
+                            viewingReceipt.image_url.startsWith('data:application/pdf') ? (
+                              <div className="w-full h-full flex flex-col items-center justify-center bg-red-50 text-red-400">
+                                <FileText size={48} className="mb-2" />
+                                <span className="text-xs font-medium">Documento PDF</span>
+                              </div>
+                            ) : (
+                              <img src={viewingReceipt.image_url} className="w-full h-full object-cover opacity-90 group-hover:opacity-100" alt="Comprovante" />
+                            )
                         ) : (
                             <div className="flex flex-col items-center text-gray-400"><ImageIcon size={32} /></div>
                         )}
@@ -379,7 +390,13 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
                         return (
                             <div key={receipt.id} onClick={() => handleCardClick(receipt)} className="bg-white rounded-xl shadow-sm overflow-hidden border border-gray-100 flex flex-col relative group cursor-pointer active:scale-95 transition-all">
                                 <div className="h-24 bg-gray-100 relative">
-                                    {receipt.image_url ? <img src={receipt.image_url} className="w-full h-full object-cover" alt="" /> : <div className="w-full h-full flex items-center justify-center text-gray-300"><ImageIcon /></div>}
+                                    {receipt.image_url ? (
+                                      receipt.image_url.startsWith('data:application/pdf') ? (
+                                        <div className="w-full h-full flex items-center justify-center text-gray-300"><FileText size={24} /></div>
+                                      ) : (
+                                        <img src={receipt.image_url} className="w-full h-full object-cover" alt="" />
+                                      )
+                                    ) : <div className="w-full h-full flex items-center justify-center text-gray-300"><ImageIcon /></div>}
                                     <div className="absolute top-2 right-2 px-1.5 py-0.5 rounded text-[8px] font-bold text-white shadow-sm z-10" style={{backgroundColor: category?.color || '#666'}}>{category?.name || 'Outros'}</div>
                                 </div>
                                 <div className="p-2.5">
@@ -416,7 +433,13 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
                     return (
                         <div key={receipt.id} onClick={() => handleCardClick(receipt)} className="bg-white rounded-xl shadow-sm p-3 flex gap-4 border border-gray-100 cursor-pointer active:bg-gray-50 transition-colors">
                             <div className="w-16 h-16 rounded-lg bg-gray-100 flex-shrink-0 overflow-hidden relative border border-gray-100">
-                                {receipt.image_url ? <img src={receipt.image_url} className="w-full h-full object-cover" alt="" /> : <div className="w-full h-full flex items-center justify-center text-gray-300"><ImageIcon size={20} /></div>}
+                                {receipt.image_url ? (
+                                  receipt.image_url.startsWith('data:application/pdf') ? (
+                                    <div className="w-full h-full flex items-center justify-center text-gray-300"><FileText size={20} /></div>
+                                  ) : (
+                                    <img src={receipt.image_url} className="w-full h-full object-cover" alt="" />
+                                  )
+                                ) : <div className="w-full h-full flex items-center justify-center text-gray-300"><ImageIcon size={20} /></div>}
                             </div>
                             <div className="flex-1 min-w-0 flex flex-col justify-between">
                                 <div className="flex justify-between items-start">

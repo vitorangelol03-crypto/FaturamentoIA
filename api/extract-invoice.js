@@ -32,11 +32,18 @@ REGRAS DE CATEGORIZAÇÃO (IMPORTANTE):
   • Farmácia vendendo CHOCOLATES, BISCOITOS → "Alimentação"
   • Loja vendendo CELULAR, COMPUTADOR → "Tecnologia"
   • Loja vendendo ROUPAS, CALÇADOS → "Vestuário"
-  • Oficina mecânica, borracharia, autopeças → "Transporte"
+  • Oficina mecânica, borracharia, autopeças, retífica, funilaria → "Transporte"
+  • Serviço de recuperação de pneu, câmara, alinhamento, balanceamento → "Transporte"
+  • Troca de óleo, filtro, pastilha de freio, correia, amortecedor → "Transporte"
+  • Qualquer serviço ou peça AUTOMOTIVA/VEICULAR → "Transporte"
   • Materiais de construção → "Moradia"
   • Insumos agrícolas, fertilizantes, sementes → "Agropecuária"
 
 CATEGORIAS VÁLIDAS: ${VALID_CATEGORIES.join(", ")}
+
+ATENÇÃO ESPECIAL:
+- Se o nome do estabelecimento contém "MECÂNICA", "BORRACHARIA", "AUTOPEÇAS", "RETÍFICA", "FUNILARIA", "AUTO CENTER", "AUTO ELÉTRICA", a categoria DEVE ser "Transporte"
+- Serviços como "recuperação de câmara", "troca de pneu", "alinhamento", "balanceamento" são SEMPRE "Transporte"
 
 Se a nota tiver itens de categorias diferentes, escolha a categoria do item de MAIOR VALOR.
 
@@ -80,7 +87,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Método não permitido' });
   }
 
-  const { image, mimeType } = req.body;
+  const { image, mimeType, images } = req.body;
   const apiKey = process.env.API_KEY;
 
   if (!apiKey) {
@@ -118,19 +125,32 @@ export default async function handler(req, res) {
       required: ["readable", "establishment", "date", "total_amount", "suggested_category"]
     };
 
+    const parts = [
+      { text: EXTRACTION_PROMPT },
+      {
+        inlineData: {
+          mimeType: mimeType || 'image/jpeg',
+          data: image
+        }
+      }
+    ];
+
+    if (images && Array.isArray(images)) {
+      for (const img of images) {
+        parts.push({
+          inlineData: {
+            mimeType: img.mimeType || 'image/jpeg',
+            data: img.data
+          }
+        });
+      }
+    }
+
     const result = await ai.models.generateContent({
       model: 'gemini-2.0-flash',
       contents: [
         {
-          parts: [
-            { text: EXTRACTION_PROMPT },
-            {
-              inlineData: {
-                mimeType: mimeType || 'image/jpeg',
-                data: image
-              }
-            }
-          ]
+          parts
         }
       ],
       config: {

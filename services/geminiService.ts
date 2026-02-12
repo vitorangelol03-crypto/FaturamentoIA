@@ -20,21 +20,30 @@ export interface ExtractionResult {
   error?: string;
 }
 
-export async function extractReceiptData(base64Image: string, mimeType: string = 'image/jpeg'): Promise<ExtractionResult> {
+export async function extractReceiptData(base64Image: string, mimeType: string = 'image/jpeg', extraImages?: string[]): Promise<ExtractionResult> {
   try {
     const cleanBase64 = base64Image.includes(",") 
       ? base64Image.split(",")[1] 
       : base64Image;
+
+    const body: any = {
+      image: cleanBase64,
+      mimeType: mimeType || 'image/jpeg'
+    };
+
+    if (extraImages && extraImages.length > 0) {
+      body.images = extraImages.map(img => ({
+        data: img.includes(",") ? img.split(",")[1] : img,
+        mimeType: 'image/jpeg'
+      }));
+    }
 
     const response = await fetch('/api/extract-invoice', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-            image: cleanBase64,
-            mimeType: mimeType || 'image/jpeg'
-        })
+        body: JSON.stringify(body)
     });
 
     if (!response.ok) {

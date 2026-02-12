@@ -6,6 +6,7 @@ import { supabase } from '../services/supabaseClient';
 import { clsx } from 'clsx';
 import { REQUIRED_CNPJ } from '../constants';
 import { notificationService } from '../services/notificationService';
+import * as pdfjsLib from 'pdfjs-dist';
 
 interface AddReceiptProps {
   categories: Category[];
@@ -188,20 +189,40 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, cur
 
   // --- FILE HANDLING ---
 
-  const handleFilesSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    handleInputBlur(); // Restaura menu
+  const handleFilesSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    handleInputBlur();
 
     if (e.target.files && e.target.files.length > 0) {
-      const newItems: QueueItem[] = Array.from(e.target.files).map((file: File) => ({
-        id: Math.random().toString(36).substr(2, 9),
-        file,
-        status: 'waiting',
-        imagePreview: URL.createObjectURL(file)
-      }));
-      
+      const files = Array.from(e.target.files);
+      const newItems: QueueItem[] = [];
+
+      for (const file of files) {
+        let preview: string | undefined;
+        if (file.type === 'application/pdf') {
+          try {
+            const pages = await renderPdfToImages(file);
+            if (pages[0]) {
+              const blob = await (await fetch(pages[0])).blob();
+              preview = URL.createObjectURL(blob);
+            }
+          } catch {
+            preview = undefined;
+          }
+        } else {
+          preview = URL.createObjectURL(file);
+        }
+
+        newItems.push({
+          id: Math.random().toString(36).substr(2, 9),
+          file,
+          status: 'waiting',
+          imagePreview: preview
+        });
+      }
+
       setQueue(prev => [...prev, ...newItems]);
       setMode('queue');
-      e.target.value = ''; 
+      e.target.value = '';
     }
   };
 
@@ -244,16 +265,49 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, cur
     });
   };
 
+  const renderPdfToImages = async (file: File): Promise<string[]> => {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+      'pdfjs-dist/build/pdf.worker.min.mjs',
+      import.meta.url
+    ).toString();
+
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    const pageCount = Math.min(pdf.numPages, 5);
+    const pageImages: string[] = [];
+
+    for (let i = 1; i <= pageCount; i++) {
+      const page = await pdf.getPage(i);
+      const scale = 2.0;
+      const viewport = page.getViewport({ scale });
+      const canvas = document.createElement('canvas');
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      const ctx = canvas.getContext('2d')!;
+      await page.render({ canvasContext: ctx, viewport, canvas } as any).promise;
+      pageImages.push(canvas.toDataURL('image/jpeg', 0.85));
+    }
+
+    return pageImages;
+  };
+
   const fileToBase64 = (file: File): Promise<string> => {
       if (file.type === 'application/pdf') {
-          return new Promise((resolve, reject) => {
-              const reader = new FileReader();
-              reader.readAsDataURL(file);
-              reader.onload = () => resolve(reader.result as string);
-              reader.onerror = error => reject(error);
-          });
+          return renderPdfToImages(file).then(pages => pages[0] || '');
       }
       return compressImage(file);
+  };
+
+  const fileToAllImages = async (file: File): Promise<{ mainImage: string; extraImages: string[] }> => {
+    if (file.type === 'application/pdf') {
+      const pages = await renderPdfToImages(file);
+      return {
+        mainImage: pages[0] || '',
+        extraImages: pages.slice(1)
+      };
+    }
+    const compressed = await compressImage(file);
+    return { mainImage: compressed, extraImages: [] };
   };
 
   // Effect Trigger: Process queue automatically whenever items are added or one finishes
@@ -294,8 +348,16 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, cur
     }
 
     try {
-      const base64 = await fileToBase64(nextItem.file);
-      const rawData = await extractReceiptData(base64, nextItem.file.type);
+      const { mainImage, extraImages } = await fileToAllImages(nextItem.file);
+      if (!mainImage) {
+        removeItem(nextItem.id);
+        if (mode === 'camera') {
+          showCameraToast('error', 'Não foi possível processar o arquivo', 4000);
+        }
+        setIsProcessing(false);
+        return;
+      }
+      const rawData = await extractReceiptData(mainImage, 'image/jpeg', extraImages.length > 0 ? extraImages : undefined);
 
       if (!rawData.readable) {
         removeItem(nextItem.id);
@@ -342,7 +404,7 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, cur
         payment_method: rawData.payment_method,
         category_id: matchedCategory.id,
         items: rawData.items || [],
-        image_url: base64,
+        image_url: mainImage,
         location: determinedLocation,
         user_id: currentUser.id,
         access_key: rawData.access_key || null,
