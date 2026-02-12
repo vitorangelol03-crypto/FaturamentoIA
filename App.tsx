@@ -11,7 +11,8 @@ import { supabase } from './services/supabaseClient';
 import { authService } from './services/authService';
 import { Receipt, Category, User } from './types';
 import { DEFAULT_CATEGORIES } from './constants';
-import { LogOut } from 'lucide-react';
+import { LogOut, Bell } from 'lucide-react';
+import { notificationService } from './services/notificationService';
 
 type HistoryEntry = { type: 'tab'; tab: string } | { type: 'overlay'; name: string };
 
@@ -23,6 +24,7 @@ export default function App() {
   const [categories, setCategories] = useState<Category[]>(DEFAULT_CATEGORIES);
   const [users, setUsers] = useState<User[]>([]);
   const [loadingData, setLoadingData] = useState(false);
+  const [showNotifBanner, setShowNotifBanner] = useState(false);
   const historyStackRef = useRef<HistoryEntry[]>([{ type: 'tab', tab: 'dashboard' }]);
   const overlayCloseHandlersRef = useRef<Map<string, () => void>>(new Map());
   
@@ -30,6 +32,9 @@ export default function App() {
     const savedUser = localStorage.getItem('smartreceipts_user');
     if (savedUser) {
         setUser(JSON.parse(savedUser));
+        if (notificationService.needsPermissionRequest()) {
+          setTimeout(() => setShowNotifBanner(true), 3000);
+        }
     }
     window.history.replaceState({ type: 'tab', tab: 'dashboard' }, '', '');
   }, []);
@@ -37,6 +42,18 @@ export default function App() {
   const handleLogin = (u: User) => {
       setUser(u);
       localStorage.setItem('smartreceipts_user', JSON.stringify(u));
+      if (notificationService.needsPermissionRequest()) {
+        setTimeout(() => setShowNotifBanner(true), 2000);
+      }
+  };
+
+  const handleNotifAllow = async () => {
+    await notificationService.requestPermission();
+    setShowNotifBanner(false);
+  };
+
+  const handleNotifDismiss = () => {
+    setShowNotifBanner(false);
   };
 
   const registerOverlayClose = useCallback((name: string, handler: () => void) => {
@@ -205,6 +222,22 @@ export default function App() {
                 <LogOut size={12} /> Sair
              </button>
         </div>
+
+        {showNotifBanner && (
+          <div className="mx-4 mt-2 bg-brand-50 border border-brand-200 rounded-xl p-3 flex items-center gap-3 animate-in slide-in-from-top-2">
+            <div className="w-10 h-10 rounded-full bg-brand-100 flex items-center justify-center flex-shrink-0">
+              <Bell size={20} className="text-brand-600" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold text-gray-800">Ativar notificações?</p>
+              <p className="text-[11px] text-gray-500">Receba avisos de downloads e notas salvas.</p>
+            </div>
+            <div className="flex gap-2 flex-shrink-0">
+              <button onClick={handleNotifDismiss} className="px-3 py-1.5 rounded-lg text-[11px] font-bold text-gray-500 bg-white border border-gray-200">Agora não</button>
+              <button onClick={handleNotifAllow} className="px-3 py-1.5 rounded-lg text-[11px] font-bold text-white bg-brand-600 shadow-sm">Permitir</button>
+            </div>
+          </div>
+        )}
 
         {currentTab === 'dashboard' && <Dashboard receipts={receipts} categories={categories} />}
         {currentTab === 'receipts' && (

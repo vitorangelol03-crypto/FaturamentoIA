@@ -9,6 +9,7 @@ import {
 import { clsx } from 'clsx';
 import { generatePDFReport, generateSingleReceiptPDF } from '../services/pdfService';
 import { supabase } from '../services/supabaseClient';
+import { notificationService } from '../services/notificationService';
 
 interface ReceiptListProps {
   receipts: Receipt[];
@@ -118,12 +119,14 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
     
     let label = periodLabels[period] || 'Relatório';
     generatePDFReport(filteredReceipts, categories, label, formatDateTime(new Date().toISOString()), true);
+    notificationService.notifyDownload(`Relatório ${label}.pdf`);
   };
 
   const handleDownloadSingle = (e: React.MouseEvent, receipt: Receipt) => {
       e.stopPropagation();
       const catName = categories.find(c => c.id === receipt.category_id)?.name || 'Outros';
       generateSingleReceiptPDF(receipt, catName);
+      notificationService.notifyDownload(`${receipt.establishment}.pdf`);
   };
 
   const handleCardClick = (receipt: Receipt) => {

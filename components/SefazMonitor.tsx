@@ -4,6 +4,7 @@ import { User, SefazNote, SefazDocZip, Category } from '../types';
 import { syncSefazNotes, getSefazNotes, saveSefazNote, getLastNSU, updateLastNSU, linkReceiptsToSefazNotes, getLinkedReceiptImages, SefazApiError } from '../services/sefazService';
 import { generateDanfePDF, generateSefazReportPDF } from '../services/pdfService';
 import { clsx } from 'clsx';
+import { notificationService } from '../services/notificationService';
 
 interface SefazMonitorProps {
   currentUser: User;
@@ -425,6 +426,7 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categor
       setMaxNSU(result.maxNSU);
       setLastSyncTime(new Date().toLocaleString('pt-BR'));
       setSuccessMsg(`Sincronização concluída! ${savedCount} documento(s) processado(s). NSU: ${result.ultNSU}`);
+      notificationService.notifySefazSync(savedCount);
       await loadData();
 
       try {
@@ -554,6 +556,7 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categor
         }
       }
       await generateSefazReportPDF(filteredNotes, categories, activeLocation, getPeriodLabel(), categorySummary, linkedImages);
+      notificationService.notifyDownload(`Relatório SEFAZ ${activeLocation}.pdf`);
     } finally {
       setGeneratingReport(false);
     }
@@ -572,6 +575,7 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categor
         }
       }
       await generateDanfePDF(note, imageUrl);
+      notificationService.notifyDownload(`DANFE ${note.emitente_nome || 'NF-e'}.pdf`);
     } finally {
       setGeneratingDanfe(false);
     }

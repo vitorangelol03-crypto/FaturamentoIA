@@ -5,6 +5,7 @@ import { Category, User } from '../types';
 import { supabase } from '../services/supabaseClient';
 import { clsx } from 'clsx';
 import { REQUIRED_CNPJ } from '../constants';
+import { notificationService } from '../services/notificationService';
 
 interface AddReceiptProps {
   categories: Category[];
@@ -366,6 +367,7 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, cur
       if (mode === 'camera') {
         showCameraToast('success', `${rawData.establishment} — R$ ${rawData.total_amount?.toFixed(2)} salvo!`);
       }
+      notificationService.notifyReceiptSaved(rawData.establishment || 'Nota');
 
     } catch (error: any) {
       console.error(`Erro ao processar ${nextItem.file.name}:`, error);
