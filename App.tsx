@@ -146,11 +146,7 @@ export default function App() {
         .order('created_at', { ascending: false });
       
       if (!isAdmin) {
-          if (user.location) {
-             query = query.eq('location', user.location);
-          } else {
-             query = query.eq('user_id', user.id);
-          }
+          query = query.eq('user_id', user.id);
       } else {
           if (selectedLocation !== 'all') {
               query = query.eq('location', selectedLocation);
