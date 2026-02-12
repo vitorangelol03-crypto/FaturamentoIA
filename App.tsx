@@ -19,6 +19,7 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [currentTab, setCurrentTab] = useState('dashboard');
   const [receipts, setReceipts] = useState<Receipt[]>([]);
+  const [linkedReceiptIds, setLinkedReceiptIds] = useState<Set<string>>(new Set());
   const [categories, setCategories] = useState<Category[]>(DEFAULT_CATEGORIES);
   const [users, setUsers] = useState<User[]>([]);
   const [loadingData, setLoadingData] = useState(false);
@@ -156,6 +157,14 @@ export default function App() {
       const { data: recData } = await query;
       if (recData) setReceipts(recData as any);
 
+      const { data: linkedData } = await supabase
+        .from('sefaz_notes')
+        .select('receipt_id')
+        .not('receipt_id', 'is', null);
+      if (linkedData) {
+        setLinkedReceiptIds(new Set(linkedData.map((n: any) => n.receipt_id)));
+      }
+
     } catch (e) {
       console.error("Error fetching data", e);
     } finally {
@@ -205,6 +214,7 @@ export default function App() {
                 users={users}
                 onRefresh={fetchData} 
                 currentUser={user}
+                linkedReceiptIds={linkedReceiptIds}
             />
         )}
         {currentTab === 'add' && (

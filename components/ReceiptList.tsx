@@ -16,13 +16,15 @@ interface ReceiptListProps {
   users: User[];
   onRefresh?: () => void;
   currentUser: User;
+  linkedReceiptIds: Set<string>;
 }
 
-export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, users, onRefresh, currentUser }) => {
+export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, users, onRefresh, currentUser, linkedReceiptIds }) => {
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [searchQuery, setSearchQuery] = useState('');
   const [period, setPeriod] = useState<PeriodFilter>('current_month');
   const [selectedCats, setSelectedCats] = useState<string[]>([]);
+  const [sefazFilter, setSefazFilter] = useState<'all' | 'linked' | 'unlinked'>('all');
   const [showFilters, setShowFilters] = useState(false);
 
   // States for Modals
@@ -76,7 +78,11 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
       // 2. Category filter
       if (selectedCats.length > 0 && !selectedCats.includes(r.category_id)) return false;
 
-      // 3. Period filter
+      // 3. SEFAZ link filter
+      if (sefazFilter === 'linked' && !linkedReceiptIds.has(r.id)) return false;
+      if (sefazFilter === 'unlinked' && linkedReceiptIds.has(r.id)) return false;
+
+      // 4. Period filter
       const rDate = new Date(r.date + 'T12:00:00'); 
       const now = new Date();
       
@@ -94,7 +100,7 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
       }
       return true; // "all"
     }).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-  }, [receipts, searchQuery, selectedCats, period]);
+  }, [receipts, searchQuery, selectedCats, period, sefazFilter, linkedReceiptIds]);
 
   const toggleCategory = (id: string) => {
     setSelectedCats(prev => prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id]);
@@ -295,6 +301,26 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
                         ))}
                     </div>
                   </div>
+
+                  {/* Filtro SEFAZ */}
+                  <div>
+                    <p className="text-[10px] font-bold text-gray-400 uppercase mb-2 tracking-wider">Vínculo SEFAZ</p>
+                    <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                        {[
+                            {id: 'all' as const, label: 'Todas'},
+                            {id: 'linked' as const, label: 'Vinculadas'},
+                            {id: 'unlinked' as const, label: 'Não vinculadas'}
+                        ].map(f => (
+                            <button 
+                                key={f.id}
+                                onClick={() => setSefazFilter(f.id)}
+                                className={clsx("px-4 py-1.5 rounded-full text-[10px] font-bold whitespace-nowrap border transition-all shadow-sm", sefazFilter === f.id ? "bg-green-600 border-green-600 text-white" : "bg-white border-gray-200 text-gray-500")}
+                            >
+                                {f.label}
+                            </button>
+                        ))}
+                    </div>
+                  </div>
                 </div>
             </div>
         )}
@@ -331,9 +357,9 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
             <div className="flex flex-col items-center justify-center h-full text-gray-400 py-10">
                 <Search size={48} className="mb-3 opacity-20"/>
                 <p className="text-sm font-medium">Nenhuma nota encontrada com os filtros atuais.</p>
-                {(searchQuery || selectedCats.length > 0 || period !== 'current_month') && (
+                {(searchQuery || selectedCats.length > 0 || period !== 'current_month' || sefazFilter !== 'all') && (
                   <button 
-                    onClick={() => { setSearchQuery(''); setSelectedCats([]); setPeriod('current_month'); }}
+                    onClick={() => { setSearchQuery(''); setSelectedCats([]); setPeriod('current_month'); setSefazFilter('all'); }}
                     className="mt-4 text-brand-600 text-xs font-bold hover:underline"
                   >
                     Limpar todos os filtros
@@ -399,7 +425,7 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
                                         <div className="flex gap-2">
                                             <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold" style={{ backgroundColor: `${category?.color || '#666'}20`, color: category?.color || '#666' }}>{category?.name || 'Outros'}</span>
                                             <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-gray-100 text-gray-500 border border-gray-200">{receipt.location || 'Caratinga'}</span>
-                                            {receipt.access_key && (
+                                            {linkedReceiptIds.has(receipt.id) && (
                                               <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold text-green-600 bg-green-50 border border-green-100">
                                                 <CheckCircle size={8} /> SEFAZ
                                               </span>
