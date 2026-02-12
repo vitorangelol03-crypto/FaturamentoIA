@@ -244,6 +244,126 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
         </div>
       )}
 
+      {/* --- MODAL: EDIT RECEIPT --- */}
+      {editingReceipt && (
+        <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/50 sm:p-4 animate-in fade-in">
+            <div className="bg-white w-full max-w-lg sm:rounded-2xl rounded-t-2xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh] sm:max-h-[90vh] sm:!mb-0" style={{ marginBottom: 'calc(68px + env(safe-area-inset-bottom, 0px))' }}>
+                <div className="flex-shrink-0 flex items-center justify-between p-4 border-b border-gray-100 bg-gray-50">
+                    <h3 className="font-bold text-gray-900 text-lg">Editar Nota</h3>
+                    <button onClick={() => { setEditingReceipt(null); setViewingReceipt(editingReceipt); }} className="text-gray-400 hover:text-gray-800 bg-white p-1 rounded-full border border-gray-200"><X size={20} /></button>
+                </div>
+                <div className="overflow-y-auto flex-1 min-h-0 p-6 space-y-5">
+                    <div>
+                        <label className="block text-xs font-bold text-gray-400 uppercase mb-1.5">Estabelecimento</label>
+                        <input
+                            type="text"
+                            value={editingReceipt.establishment}
+                            onChange={(e) => setEditingReceipt({...editingReceipt, establishment: e.target.value})}
+                            className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium focus:ring-2 ring-brand-500 outline-none"
+                        />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-xs font-bold text-gray-400 uppercase mb-1.5">Data</label>
+                            <input
+                                type="date"
+                                value={editingReceipt.date}
+                                onChange={(e) => setEditingReceipt({...editingReceipt, date: e.target.value})}
+                                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:ring-2 ring-brand-500 outline-none"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-gray-400 uppercase mb-1.5">Valor (R$)</label>
+                            <input
+                                type="number"
+                                step="0.01"
+                                value={editingReceipt.total_amount}
+                                onChange={(e) => setEditingReceipt({...editingReceipt, total_amount: parseFloat(e.target.value) || 0})}
+                                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm font-bold text-brand-600 focus:ring-2 ring-brand-500 outline-none"
+                            />
+                        </div>
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Categoria</label>
+                        <div className="grid grid-cols-2 gap-2">
+                            {categories.map(cat => (
+                                <button
+                                    key={cat.id}
+                                    onClick={() => setEditingReceipt({...editingReceipt, category_id: cat.id})}
+                                    className={clsx(
+                                        "text-xs px-3 py-2.5 rounded-xl border transition-colors text-left flex items-center gap-2",
+                                        editingReceipt.category_id === cat.id
+                                            ? "bg-brand-50 border-brand-500 text-brand-700 font-bold"
+                                            : "bg-white border-gray-200 text-gray-600"
+                                    )}
+                                >
+                                    <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{backgroundColor: cat.color}}></div>
+                                    <span className="truncate">{cat.name}</span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                    {isAdmin && (
+                        <div>
+                            <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Unidade</label>
+                            <div className="flex gap-2">
+                                {['Caratinga', 'Ponte Nova'].map(loc => (
+                                    <button
+                                        key={loc}
+                                        onClick={() => setEditingReceipt({...editingReceipt, location: loc})}
+                                        className={clsx(
+                                            "flex-1 py-2.5 text-xs font-bold rounded-xl border transition-colors",
+                                            editingReceipt.location === loc
+                                                ? "bg-brand-50 border-brand-500 text-brand-700"
+                                                : "bg-white border-gray-200 text-gray-500"
+                                        )}
+                                    >
+                                        {loc}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
+                <div className="flex-shrink-0 p-4 pb-[max(1rem,env(safe-area-inset-bottom,1rem))] border-t border-gray-100 bg-gray-50 flex gap-3">
+                    <button
+                        onClick={() => { setEditingReceipt(null); setViewingReceipt(editingReceipt); }}
+                        className="flex-1 flex items-center justify-center gap-2 bg-white border border-gray-200 py-3 rounded-xl font-medium text-gray-600"
+                    >
+                        Cancelar
+                    </button>
+                    <button
+                        disabled={isSavingEdit}
+                        onClick={async () => {
+                            if (!editingReceipt) return;
+                            setIsSavingEdit(true);
+                            try {
+                                const { error } = await supabase.from('receipts').update({
+                                    establishment: editingReceipt.establishment,
+                                    date: editingReceipt.date,
+                                    total_amount: editingReceipt.total_amount,
+                                    category_id: editingReceipt.category_id,
+                                    location: editingReceipt.location,
+                                }).eq('id', editingReceipt.id);
+                                if (error) throw error;
+                                setEditingReceipt(null);
+                                if (onRefresh) onRefresh();
+                            } catch (err) {
+                                alert('Erro ao salvar alterações.');
+                            } finally {
+                                setIsSavingEdit(false);
+                            }
+                        }}
+                        className="flex-1 flex items-center justify-center gap-2 bg-brand-600 text-white py-3 rounded-xl font-bold shadow-sm"
+                    >
+                        {isSavingEdit ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
+                        Salvar
+                    </button>
+                </div>
+            </div>
+        </div>
+      )}
+
       {/* --- SEARCH & FILTERS --- */}
       <div className="bg-white p-4 shadow-sm z-10 sticky top-0 border-b border-gray-100">
         <div className="relative mb-3">

@@ -132,6 +132,7 @@ export default defineConfig({
           req.on('end', async () => {
             try {
               const parsedBody = JSON.parse(body);
+              // @ts-ignore - JS module without type declarations
               const handler = (await import('./api/extract-invoice.js')).default;
               const fakeReq = { method: 'POST', body: parsedBody } as any;
               const fakeRes = {

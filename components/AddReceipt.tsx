@@ -189,36 +189,17 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, cur
 
   // --- FILE HANDLING ---
 
-  const handleFilesSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFilesSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     handleInputBlur();
 
     if (e.target.files && e.target.files.length > 0) {
       const files = Array.from(e.target.files);
-      const newItems: QueueItem[] = [];
-
-      for (const file of files) {
-        let preview: string | undefined;
-        if (file.type === 'application/pdf') {
-          try {
-            const pages = await renderPdfToImages(file);
-            if (pages[0]) {
-              const blob = await (await fetch(pages[0])).blob();
-              preview = URL.createObjectURL(blob);
-            }
-          } catch {
-            preview = undefined;
-          }
-        } else {
-          preview = URL.createObjectURL(file);
-        }
-
-        newItems.push({
-          id: Math.random().toString(36).substr(2, 9),
-          file,
-          status: 'waiting',
-          imagePreview: preview
-        });
-      }
+      const newItems: QueueItem[] = files.map((file) => ({
+        id: Math.random().toString(36).substr(2, 9),
+        file,
+        status: 'waiting' as QueueStatus,
+        imagePreview: file.type === 'application/pdf' ? undefined : URL.createObjectURL(file)
+      }));
 
       setQueue(prev => [...prev, ...newItems]);
       setMode('queue');
