@@ -149,8 +149,8 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
 
       {/* --- MODAL: DETAIL VIEW --- */}
       {viewingReceipt && !editingReceipt && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 sm:p-4 animate-in fade-in">
-            <div className="bg-white w-full max-w-lg sm:rounded-2xl rounded-t-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] sm:max-h-[90vh] mb-[env(safe-area-inset-bottom,0px)]">
+        <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/50 sm:p-4 animate-in fade-in">
+            <div className="bg-white w-full max-w-lg sm:rounded-2xl rounded-t-2xl shadow-2xl overflow-hidden flex flex-col max-h-[75vh] sm:max-h-[90vh] sm:!mb-0" style={{ marginBottom: 'calc(68px + env(safe-area-inset-bottom, 0px))' }}>
                 <div className="flex-shrink-0 flex items-center justify-between p-4 border-b border-gray-100 bg-gray-50">
                     <h3 className="font-bold text-gray-900 truncate pr-4 text-lg">{viewingReceipt.establishment}</h3>
                     <button onClick={() => setViewingReceipt(null)} className="text-gray-400 hover:text-gray-800 bg-white p-1 rounded-full border border-gray-200"><X size={20} /></button>
