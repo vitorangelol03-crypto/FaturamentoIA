@@ -79,6 +79,8 @@ A smart receipt/invoice management application built with React and TypeScript. 
 - Camera has an X close button in addition to "Concluir" (finish) button
 
 ## Recent Changes
+- 2026-02-13: Cross-user category filter — ReceiptList and SefazMonitor now have a dropdown to select which user's categories to use for filtering (matches by category name across users)
+- 2026-02-13: All downloaded files (PDF reports, DANFE, individual receipts) include current date in filename (dd-mm-yyyy format)
 - 2026-02-13: Per-user categories — each user has independent categories, new users get defaults auto-created, category_name/color stored on receipt for cross-user visibility
 - 2026-02-13: Added observations field to receipts (edit modal textarea, detail modal display)
 - 2026-02-13: Mobile anti-zoom CSS fixes (text-size-adjust, responsive card layouts, flex-wrap badges)

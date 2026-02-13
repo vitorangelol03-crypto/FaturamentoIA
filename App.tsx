@@ -301,6 +301,7 @@ export default function App() {
             <SefazMonitor 
               currentUser={user} 
               categories={categories}
+              users={users}
               pushOverlay={pushOverlay}
               closeOverlay={closeOverlay}
               registerOverlayClose={registerOverlayClose}

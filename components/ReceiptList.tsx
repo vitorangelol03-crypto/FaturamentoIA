@@ -27,6 +27,25 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
   const [selectedCats, setSelectedCats] = useState<string[]>([]);
   const [sefazFilter, setSefazFilter] = useState<'all' | 'linked' | 'unlinked'>('all');
   const [showFilters, setShowFilters] = useState(false);
+  const [categorySourceUserId, setCategorySourceUserId] = useState<string>('mine');
+  const [filterCategories, setFilterCategories] = useState<Category[]>(categories);
+
+  useEffect(() => {
+    if (categorySourceUserId === 'mine') {
+      setFilterCategories(categories);
+      setSelectedCats([]);
+    } else {
+      supabase
+        .from('categories')
+        .select('*')
+        .eq('user_id', categorySourceUserId)
+        .order('name')
+        .then(({ data }) => {
+          setFilterCategories(data || []);
+          setSelectedCats([]);
+        });
+    }
+  }, [categorySourceUserId, categories]);
 
   // States for Modals
   const [editingReceipt, setEditingReceipt] = useState<Receipt | null>(null);
@@ -94,8 +113,12 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
       
       if (!matchesSearch) return false;
 
-      // 2. Category filter
-      if (selectedCats.length > 0 && !selectedCats.includes(r.category_id)) return false;
+      // 2. Category filter (match by name when using another user's categories)
+      if (selectedCats.length > 0) {
+        const selectedNames = selectedCats.map(id => filterCategories.find(c => c.id === id)?.name).filter(Boolean);
+        const receiptCatName = r.category_name || categories.find(c => c.id === r.category_id)?.name;
+        if (!selectedNames.includes(receiptCatName)) return false;
+      }
 
       // 3. SEFAZ link filter
       if (sefazFilter === 'linked' && !linkedReceiptIds.has(r.id)) return false;
@@ -119,7 +142,7 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
       }
       return true; // "all"
     }).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-  }, [receipts, searchQuery, selectedCats, period, sefazFilter, linkedReceiptIds]);
+  }, [receipts, searchQuery, selectedCats, period, sefazFilter, linkedReceiptIds, filterCategories, categories]);
 
   const toggleCategory = (id: string) => {
     setSelectedCats(prev => prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id]);
@@ -474,7 +497,19 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
 
                   {/* Filtro de Categorias */}
                   <div>
-                    <p className="text-[10px] font-bold text-gray-400 uppercase mb-2 tracking-wider">Categorias</p>
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Categorias</p>
+                      <select
+                        value={categorySourceUserId}
+                        onChange={(e) => setCategorySourceUserId(e.target.value)}
+                        className="text-[10px] bg-white border border-gray-200 rounded-md px-2 py-1 text-gray-600 focus:outline-none focus:border-brand-400"
+                      >
+                        <option value="mine">Minhas categorias</option>
+                        {users.filter(u => u.id !== currentUser.id).map(u => (
+                          <option key={u.id} value={u.id}>{u.full_name}</option>
+                        ))}
+                      </select>
+                    </div>
                     <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
                         <button 
                             onClick={() => setSelectedCats([])}
@@ -485,7 +520,7 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
                         >
                             Todas
                         </button>
-                        {categories.map(cat => (
+                        {filterCategories.map(cat => (
                             <button 
                                 key={cat.id}
                                 onClick={() => toggleCategory(cat.id)}

@@ -5,10 +5,12 @@ import { syncSefazNotes, getSefazNotes, saveSefazNote, getLastNSU, updateLastNSU
 import { generateDanfePDF, generateSefazReportPDF } from '../services/pdfService';
 import { clsx } from 'clsx';
 import { notificationService } from '../services/notificationService';
+import { supabase } from '../services/supabaseClient';
 
 interface SefazMonitorProps {
   currentUser: User;
   categories: Category[];
+  users: User[];
   pushOverlay: (name: string) => void;
   closeOverlay: (name: string) => void;
   registerOverlayClose: (name: string, handler: () => void) => void;
@@ -249,7 +251,7 @@ function categorizeBySuplierName(emitenteName: string, categories: Category[]): 
   return null;
 }
 
-export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categories, pushOverlay, closeOverlay, registerOverlayClose, unregisterOverlayClose }) => {
+export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categories, users, pushOverlay, closeOverlay, registerOverlayClose, unregisterOverlayClose }) => {
   const [notes, setNotes] = useState<SefazNote[]>([]);
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -266,6 +268,26 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categor
   const [linkFilter, setLinkFilter] = useState<'all' | 'linked' | 'unlinked'>('all');
   const [dateStart, setDateStart] = useState('');
   const [dateEnd, setDateEnd] = useState('');
+  const [categorySourceUserId, setCategorySourceUserId] = useState<string>('mine');
+  const [filterCategories, setFilterCategories] = useState<Category[]>(categories);
+  const [selectedCatFilter, setSelectedCatFilter] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (categorySourceUserId === 'mine') {
+      setFilterCategories(categories);
+      setSelectedCatFilter([]);
+    } else {
+      supabase
+        .from('categories')
+        .select('*')
+        .eq('user_id', categorySourceUserId)
+        .order('name')
+        .then(({ data }) => {
+          setFilterCategories(data || []);
+          setSelectedCatFilter([]);
+        });
+    }
+  }, [categorySourceUserId, categories]);
 
   const closeSefazDetail = useCallback(() => {
     setViewingXml(null);
@@ -487,9 +509,15 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categor
       }
       if (linkFilter === 'linked' && !note.receipt_id) return false;
       if (linkFilter === 'unlinked' && note.receipt_id) return false;
+      if (selectedCatFilter.length > 0) {
+        const selectedNames = selectedCatFilter.map(id => filterCategories.find(c => c.id === id)?.name?.toLowerCase()).filter(Boolean);
+        const noteCat = getCategoryForNote(note);
+        const noteCatName = noteCat?.name?.toLowerCase() || '';
+        if (!selectedNames.includes(noteCatName)) return false;
+      }
       return true;
     });
-  }, [notes, searchQuery, periodFilter, dateStart, dateEnd, linkFilter]);
+  }, [notes, searchQuery, periodFilter, dateStart, dateEnd, linkFilter, selectedCatFilter, filterCategories]);
 
   const totalFiltered = useMemo(() => {
     return filteredNotes.reduce((sum, n) => sum + (n.valor_total || 0), 0);
@@ -740,6 +768,47 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categor
             {opt.label}
           </button>
         ))}
+      </div>
+
+      {/* Filtro de Categorias */}
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Categorias</p>
+          <select
+            value={categorySourceUserId}
+            onChange={(e) => setCategorySourceUserId(e.target.value)}
+            className="text-[10px] bg-white border border-gray-200 rounded-md px-2 py-1 text-gray-600 focus:outline-none focus:border-brand-400"
+          >
+            <option value="mine">Minhas categorias</option>
+            {users.filter(u => u.id !== currentUser.id).map(u => (
+              <option key={u.id} value={u.id}>{u.full_name}</option>
+            ))}
+          </select>
+        </div>
+        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+          <button
+            onClick={() => setSelectedCatFilter([])}
+            className={clsx(
+              "px-2.5 py-1 rounded-full text-[11px] font-medium whitespace-nowrap transition-colors",
+              selectedCatFilter.length === 0 ? "bg-gray-800 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+            )}
+          >
+            Todas
+          </button>
+          {filterCategories.map(cat => (
+            <button
+              key={cat.id}
+              onClick={() => setSelectedCatFilter(prev => prev.includes(cat.id) ? prev.filter(c => c !== cat.id) : [...prev, cat.id])}
+              className={clsx(
+                "px-2.5 py-1 rounded-full text-[11px] font-medium whitespace-nowrap transition-colors flex items-center gap-1",
+                selectedCatFilter.includes(cat.id) ? "bg-brand-50 text-brand-700 border border-brand-600" : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+              )}
+            >
+              <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: cat.color }}></span>
+              {cat.name}
+            </button>
+          ))}
+        </div>
       </div>
 
       {periodFilter === 'custom' && (
