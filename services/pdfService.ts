@@ -181,7 +181,8 @@ export const generateSingleReceiptPDF = async (receipt: Receipt, categoryName: s
 
     // Filename
     const cleanName = receipt.establishment.replace(/[^a-z0-9]/gi, '_').toLowerCase().substring(0, 15);
-    doc.save(`${cleanName}_${receipt.date}.pdf`);
+    const today = new Date().toLocaleDateString('pt-BR').replace(/\//g, '-');
+    doc.save(`${cleanName}_${today}.pdf`);
 };
 
 export const generatePDFReport = async (
@@ -289,7 +290,8 @@ export const generatePDFReport = async (
     }
   }
 
-  doc.save('relatorio_notas.pdf');
+  const today = new Date().toLocaleDateString('pt-BR').replace(/\//g, '-');
+  doc.save(`relatorio_notas_${today}.pdf`);
 };
 
 const formatCNPJ = (cnpj?: string) => {
@@ -503,7 +505,8 @@ export const generateDanfePDF = async (note: SefazNote, linkedReceiptImageUrl?: 
     addFooter();
   }
 
-  const fileName = `DANFE_${note.numero_nota || note.nsu || 'nota'}_${(note.emitente_nome || 'emitente').replace(/[^a-z0-9]/gi, '_').substring(0, 20)}.pdf`;
+  const today = new Date().toLocaleDateString('pt-BR').replace(/\//g, '-');
+  const fileName = `DANFE_${note.numero_nota || note.nsu || 'nota'}_${today}.pdf`;
   doc.save(fileName);
 };
 
