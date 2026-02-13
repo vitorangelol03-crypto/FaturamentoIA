@@ -52,10 +52,17 @@ A smart receipt/invoice management application built with React and TypeScript. 
 - Linking stored via receipt_id column on sefaz_notes table
 - ReceiptList shows "SEFAZ" badge on receipts that have access_key
 
+## Categories (Per-User)
+- Each user has their own set of categories (filtered by user_id)
+- New users automatically receive default categories on first login (from DEFAULT_CATEGORIES in constants.ts)
+- When a receipt is saved, category_name and category_color are stored directly on the receipt
+- This ensures the category is visible to all users regardless of whether they have that category
+- Fallback: if category_name/color not on receipt, falls back to getCat() lookup by category_id
+
 ## Supabase Tables
 - `users` - User accounts with roles (admin/user) and locations
-- `receipts` - Scanned receipt data (includes access_key for NF-e linking)
-- `categories` - Expense categories
+- `receipts` - Scanned receipt data (includes access_key, category_name, category_color, observations)
+- `categories` - Expense categories (per-user via user_id column)
 - `sefaz_notes` - Fiscal notes from SEFAZ (chave_acesso, emitente, valor, XML, receipt_id for linking)
 - `sefaz_sync_control` - Last synced NSU tracking
 - Note: RLS policies need anon access for sefaz_notes and sefaz_sync_control
@@ -72,6 +79,9 @@ A smart receipt/invoice management application built with React and TypeScript. 
 - Camera has an X close button in addition to "Concluir" (finish) button
 
 ## Recent Changes
+- 2026-02-13: Per-user categories — each user has independent categories, new users get defaults auto-created, category_name/color stored on receipt for cross-user visibility
+- 2026-02-13: Added observations field to receipts (edit modal textarea, detail modal display)
+- 2026-02-13: Mobile anti-zoom CSS fixes (text-size-adjust, responsive card layouts, flex-wrap badges)
 - 2026-02-11: Upgraded to Gemini 2.0 Flash model, improved prompt with item-based categorization (not establishment-based), added readability validation with auto-removal of unreadable photos, real-time camera processing with toast feedback
 - 2026-02-11: Added camera close button (X) and centralized History API back button handling for mobile navigation
 - 2026-02-11: Added per-admin SEFAZ access control (sefaz_access field on users table) with location switcher in Monitor
