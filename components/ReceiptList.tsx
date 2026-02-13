@@ -593,8 +593,8 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
                     }
 
                     return (
-                        <div key={receipt.id} onClick={() => handleCardClick(receipt)} className="bg-white rounded-xl shadow-sm p-3 flex gap-4 border border-gray-100 cursor-pointer active:bg-gray-50 transition-colors">
-                            <div className="w-16 h-16 rounded-lg bg-gray-100 flex-shrink-0 overflow-hidden relative border border-gray-100">
+                        <div key={receipt.id} onClick={() => handleCardClick(receipt)} className="bg-white rounded-xl shadow-sm p-3 flex gap-3 border border-gray-100 cursor-pointer active:bg-gray-50 transition-colors overflow-hidden">
+                            <div className="w-14 h-14 rounded-lg bg-gray-100 flex-shrink-0 overflow-hidden relative border border-gray-100">
                                 {receipt.image_url ? (
                                   receipt.image_url.startsWith('data:application/pdf') ? (
                                     <div className="w-full h-full flex items-center justify-center text-gray-300"><FileText size={20} /></div>
@@ -603,28 +603,24 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
                                   )
                                 ) : <div className="w-full h-full flex items-center justify-center text-gray-300"><ImageIcon size={20} /></div>}
                             </div>
-                            <div className="flex-1 min-w-0 flex flex-col justify-between">
-                                <div className="flex justify-between items-start">
-                                    <h3 className="font-bold text-gray-900 truncate pr-2 text-sm">{receipt.establishment}</h3>
-                                    <span className="text-brand-600 font-bold text-sm whitespace-nowrap">R$ {Number(receipt.total_amount).toFixed(2)}</span>
+                            <div className="flex-1 min-w-0">
+                                <div className="flex justify-between items-start gap-1">
+                                    <h3 className="font-bold text-gray-900 truncate text-[13px] leading-tight">{receipt.establishment}</h3>
+                                    <span className="text-brand-600 font-bold text-[13px] whitespace-nowrap flex-shrink-0">R$ {Number(receipt.total_amount).toFixed(2)}</span>
                                 </div>
-                                <div className="flex justify-between items-end mt-1">
-                                    <div className="space-y-1">
-                                        <div className="flex gap-2">
-                                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold" style={{ backgroundColor: `${category?.color || '#666'}20`, color: category?.color || '#666' }}>{category?.name || 'Outros'}</span>
-                                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-gray-100 text-gray-500 border border-gray-200">{receipt.location || 'Caratinga'}</span>
-                                            {linkedReceiptIds.has(receipt.id) && (
-                                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold text-green-600 bg-green-50 border border-green-100">
-                                                <CheckCircle size={8} /> SEFAZ
-                                              </span>
-                                            )}
-                                        </div>
-                                        <div className="flex items-center gap-2 text-[9px] text-gray-400 font-medium">
-                                            <span className="flex items-center gap-1"><UserIcon size={9}/> {uploaderName}</span>
-                                            <span>•</span>
-                                            <span className="flex items-center gap-1"><Clock size={9}/> {formatDateTime(receipt.created_at)}</span>
-                                        </div>
-                                    </div>
+                                <div className="flex flex-wrap gap-1 mt-1.5">
+                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold leading-none" style={{ backgroundColor: `${category?.color || '#666'}20`, color: category?.color || '#666' }}>{category?.name || 'Outros'}</span>
+                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold leading-none bg-gray-100 text-gray-500">{receipt.location || 'Caratinga'}</span>
+                                    {linkedReceiptIds.has(receipt.id) && (
+                                      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold leading-none text-green-600 bg-green-50">
+                                        <CheckCircle size={8} /> SEFAZ
+                                      </span>
+                                    )}
+                                </div>
+                                <div className="flex items-center gap-1.5 mt-1 text-[9px] text-gray-400 font-medium truncate">
+                                    <span className="flex items-center gap-0.5 truncate"><UserIcon size={8}/> {uploaderName.split(' ')[0]}</span>
+                                    <span>•</span>
+                                    <span className="flex items-center gap-0.5 whitespace-nowrap"><Clock size={8}/> {formatDateTime(receipt.created_at)}</span>
                                 </div>
                             </div>
                         </div>

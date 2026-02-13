@@ -51,19 +51,35 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
 <style>
-  /* Comportamento de scroll suave global */
   html {
     scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+    -moz-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    font-size: 16px;
   }
   
-  /* Esconde o menu inferior quando a classe camera-active está no body */
+  body {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    overflow-x: hidden;
+    max-width: 100vw;
+  }
+
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
+
   body.camera-active nav.bottom-nav {
     display: none !important;
   }
 
-  /* Ajuste para garantir que o Fixed Nav não cubra o conteúdo */
   .main-content-area {
     padding-bottom: calc(80px + env(safe-area-inset-bottom));
+  }
+
+  @media screen and (max-width: 380px) {
+    html { font-size: 14px; }
   }
 </style>
 </head>
