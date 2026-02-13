@@ -15,13 +15,14 @@ A smart receipt/invoice management application built with React and TypeScript. 
 - `/` - Root contains main app files (App.tsx, index.tsx, index.html, types.ts, constants.ts)
 - `/components/` - React components (Dashboard, ReceiptList, AddReceipt, Settings, AuthPage, AdminPanel, SefazMonitor, Layout)
 - `/services/` - Service modules (supabaseClient, authService, geminiService, pdfService, sefazService)
-- `/api/` - Vercel-style serverless functions (extract-invoice.js, sefaz-monitor.js) - handled via Vite middleware in dev
+- `/api/` - Vercel-style serverless functions (extract-invoice.js, extract-key.js, sefaz-monitor.js) - handled via Vite middleware in dev
 - `/public/` - PWA assets (manifest.json, service-worker.js, offline.html)
 
 ## Configuration
 - **Vite dev server**: Runs on 0.0.0.0:5000 with all hosts allowed for Replit proxy
 - **API routes**:
   - `/api/extract-invoice` - Google Gemini OCR for receipt scanning
+  - `/api/extract-key` - Google Gemini key-only extraction (44-digit chave de acesso from photo)
   - `/api/sefaz-monitor` - SEFAZ NF-e distribution queries (sync, consultaChave, consultaNSU)
 - **Environment variables**:
   - `API_KEY` - Google Gemini API key (for receipt AI extraction)
@@ -44,6 +45,7 @@ A smart receipt/invoice management application built with React and TypeScript. 
 - DANFE PDF generation via jsPDF for each note
 - Auto-linking: After sync, system scans receipts table for matching access keys and links them
 - Linked notes show "Vinculada" badge, unlinked show "Sem recibo"
+- Key lookup: Scan photo or type 44-digit key to query SEFAZ directly (consultaChNFe), view and save result
 
 ## Receipt-SEFAZ Linking
 - AI (Gemini) extracts 44-digit access_key from scanned receipts
@@ -78,7 +80,13 @@ A smart receipt/invoice management application built with React and TypeScript. 
 - Back button on mobile navigates between tabs instead of closing the app
 - Camera has an X close button in addition to "Concluir" (finish) button
 
+## Admin Verification
+- Centralized `isAdmin(user)` function in types.ts — all admin access checks use this function
+- Logic: user.role === 'admin' || user.username === 'zoork22'
+
 ## Recent Changes
+- 2026-02-13: SEFAZ key lookup — scan photo or type 44-digit chave de acesso to query SEFAZ directly, view note details, and save to database
+- 2026-02-13: Centralized admin verification — isAdmin() helper function in types.ts, all components use centralized check
 - 2026-02-13: Cross-user category filter — ReceiptList and SefazMonitor now have a dropdown to select which user's categories to use for filtering (matches by category name across users)
 - 2026-02-13: All downloaded files (PDF reports, DANFE, individual receipts) include current date in filename (dd-mm-yyyy format)
 - 2026-02-13: Per-user categories — each user has independent categories, new users get defaults auto-created, category_name/color stored on receipt for cross-user visibility
