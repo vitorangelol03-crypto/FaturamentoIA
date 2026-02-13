@@ -42,12 +42,20 @@ export const Dashboard: React.FC<DashboardProps> = ({ receipts, categories }) =>
   const average = noteCount ? totalSpent / noteCount : 0;
 
   // 2. Prepare Data for Pie Chart (By Category)
-  const categoryData = categories.map(cat => {
-    const value = filteredReceipts
-      .filter(r => r.category_id === cat.id)
-      .reduce((acc, r) => acc + Number(r.total_amount), 0);
-    return { name: cat.name, value, color: cat.color };
-  }).filter(d => d.value > 0).sort((a, b) => b.value - a.value); // Sort by value desc
+  const categoryMap = new Map<string, { name: string; color: string; value: number }>();
+  filteredReceipts.forEach(r => {
+    const name = r.category_name || categories.find(c => c.id === r.category_id)?.name || 'Outros';
+    const color = r.category_color || categories.find(c => c.id === r.category_id)?.color || '#6B7280';
+    const existing = categoryMap.get(name);
+    if (existing) {
+      existing.value += Number(r.total_amount);
+    } else {
+      categoryMap.set(name, { name, color, value: Number(r.total_amount) });
+    }
+  });
+  const categoryData = Array.from(categoryMap.values())
+    .filter(c => c.value > 0)
+    .sort((a, b) => b.value - a.value);
 
   // 3. Prepare Data for Area Chart (Over Time)
   const sortedReceipts = [...filteredReceipts].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());

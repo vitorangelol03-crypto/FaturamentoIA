@@ -151,10 +151,21 @@ export default function App() {
       const { data: catData } = await supabase
         .from('categories')
         .select('*')
-        .or(`is_default.eq.true,user_id.eq.${user.id}`)
+        .eq('user_id', user.id)
         .order('name');
 
-      if (catData && catData.length > 0) {
+      if (!catData || catData.length === 0) {
+        const defaultCats = DEFAULT_CATEGORIES.map(c => ({
+          name: c.name,
+          color: c.color,
+          is_default: false,
+          user_id: user.id
+        }));
+        const { data: inserted } = await supabase.from('categories').insert(defaultCats).select();
+        if (inserted && inserted.length > 0) {
+          setCategories(inserted);
+        }
+      } else {
         setCategories(catData);
       }
 

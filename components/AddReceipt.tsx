@@ -386,6 +386,8 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, cur
         receipt_number: rawData.receipt_number,
         payment_method: rawData.payment_method,
         category_id: matchedCategory.id,
+        category_name: matchedCategory.name,
+        category_color: matchedCategory.color,
         items: rawData.items || [],
         image_url: mainImage,
         location: determinedLocation,
@@ -448,11 +450,14 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, cur
 
       setIsSavingEdit(true);
       try {
+          const selectedCat = categories.find(c => c.id === editingItem.category_id);
           const { error } = await supabase.from('receipts').update({
               establishment: editingItem.establishment,
               date: editingItem.date,
               total_amount: editingItem.total_amount,
               category_id: editingItem.category_id,
+              category_name: selectedCat?.name || null,
+              category_color: selectedCat?.color || null,
               location: editingItem.location
           }).eq('id', editingItem.dbId);
 

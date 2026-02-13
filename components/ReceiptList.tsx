@@ -192,7 +192,7 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
                             <div className="flex flex-col items-center text-gray-400"><ImageIcon size={32} /></div>
                         )}
                         <div className="absolute bottom-3 right-3">
-                             <span className="px-3 py-1 rounded-full text-xs font-bold text-white shadow-sm" style={{backgroundColor: getCat(viewingReceipt.category_id)?.color || '#666'}}>{getCat(viewingReceipt.category_id)?.name || 'Outros'}</span>
+                             {(() => { const viewCatName = viewingReceipt.category_name || getCat(viewingReceipt.category_id)?.name || 'Outros'; const viewCatColor = viewingReceipt.category_color || getCat(viewingReceipt.category_id)?.color || '#6B7280'; return <span className="px-3 py-1 rounded-full text-xs font-bold text-white shadow-sm" style={{backgroundColor: viewCatColor}}>{viewCatName}</span>; })()}
                         </div>
                     </div>
                     <div className="p-6 space-y-6">
@@ -399,11 +399,14 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
                             if (!editingReceipt) return;
                             setIsSavingEdit(true);
                             try {
+                                const editCat = categories.find(c => c.id === editingReceipt.category_id);
                                 const { error } = await supabase.from('receipts').update({
                                     establishment: editingReceipt.establishment,
                                     date: editingReceipt.date,
                                     total_amount: editingReceipt.total_amount,
                                     category_id: editingReceipt.category_id,
+                                    category_name: editCat?.name || null,
+                                    category_color: editCat?.color || null,
                                     location: editingReceipt.location,
                                     observations: editingReceipt.observations || null,
                                 }).eq('id', editingReceipt.id);
@@ -579,7 +582,7 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
                                         <img src={receipt.image_url} className="w-full h-full object-cover" alt="" />
                                       )
                                     ) : <div className="w-full h-full flex items-center justify-center text-gray-300"><ImageIcon /></div>}
-                                    <div className="absolute top-2 right-2 px-1.5 py-0.5 rounded text-[8px] font-bold text-white shadow-sm z-10" style={{backgroundColor: category?.color || '#666'}}>{category?.name || 'Outros'}</div>
+                                    {(() => { const catName = receipt.category_name || category?.name || 'Outros'; const catColor = receipt.category_color || category?.color || '#6B7280'; return <div className="absolute top-2 right-2 px-1.5 py-0.5 rounded text-[8px] font-bold text-white shadow-sm z-10" style={{backgroundColor: catColor}}>{catName}</div>; })()}
                                 </div>
                                 <div className="p-2.5">
                                     <p className="font-bold text-gray-900 text-[10px] truncate mb-0.5">{receipt.establishment}</p>
@@ -601,7 +604,7 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
                         return (
                             <div key={receipt.id} className="bg-white rounded-lg shadow-sm border border-gray-100 p-3 flex items-center justify-between cursor-pointer active:bg-gray-50 transition-colors" onClick={() => handleCardClick(receipt)}>
                                 <div className="flex items-center gap-3 overflow-hidden">
-                                    <div className="w-1 h-8 rounded-full flex-shrink-0" style={{backgroundColor: category?.color || '#666'}}></div>
+                                    <div className="w-1 h-8 rounded-full flex-shrink-0" style={{backgroundColor: receipt.category_color || category?.color || '#6B7280'}}></div>
                                     <div className="truncate">
                                         <p className="font-bold text-xs text-gray-900 truncate">{receipt.establishment}</p>
                                         <p className="text-[9px] text-gray-400 truncate flex items-center gap-1"><UserIcon size={8}/> {uploaderName} • {new Date(receipt.date).toLocaleDateString('pt-BR')}</p>
@@ -629,7 +632,7 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
                                     <span className="text-brand-600 font-bold text-[13px] whitespace-nowrap flex-shrink-0">R$ {Number(receipt.total_amount).toFixed(2)}</span>
                                 </div>
                                 <div className="flex flex-wrap gap-1 mt-1.5">
-                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold leading-none" style={{ backgroundColor: `${category?.color || '#666'}20`, color: category?.color || '#666' }}>{category?.name || 'Outros'}</span>
+                                    {(() => { const catName = receipt.category_name || category?.name || 'Outros'; const catColor = receipt.category_color || category?.color || '#6B7280'; return <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold leading-none" style={{ backgroundColor: `${catColor}20`, color: catColor }}>{catName}</span>; })()}
                                     <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold leading-none bg-gray-100 text-gray-500">{receipt.location || 'Caratinga'}</span>
                                     {linkedReceiptIds.has(receipt.id) && (
                                       <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold leading-none text-green-600 bg-green-50">

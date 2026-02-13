@@ -40,6 +40,8 @@ export interface Receipt {
   source?: 'internal' | 'external'; // internal = App Upload, external = SEFAZ Import
   access_key?: string; // Chave de acesso da NFe (44 dígitos)
   observations?: string;
+  category_name?: string;
+  category_color?: string;
 }
 
 export type ViewMode = 'list' | 'grid' | 'compact';
