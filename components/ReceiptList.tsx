@@ -342,14 +342,14 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
                                     key={cat.id}
                                     onClick={() => setEditingReceipt({...editingReceipt, category_id: cat.id})}
                                     className={clsx(
-                                        "text-xs px-3 py-2.5 rounded-xl border transition-colors text-left flex items-center gap-2",
+                                        "text-xs px-3 py-2.5 rounded-xl border transition-colors text-left flex items-center gap-2 min-h-[40px]",
                                         editingReceipt.category_id === cat.id
                                             ? "bg-brand-50 border-brand-500 text-brand-700 font-bold"
                                             : "bg-white border-gray-200 text-gray-600"
                                     )}
                                 >
                                     <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{backgroundColor: cat.color}}></div>
-                                    <span className="truncate">{cat.name}</span>
+                                    <span className="break-words leading-tight">{cat.name}</span>
                                 </button>
                             ))}
                         </div>

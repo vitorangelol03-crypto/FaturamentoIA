@@ -577,7 +577,7 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, cur
                                     key={cat.id}
                                     onClick={() => setEditingItem({...editingItem, category_id: cat.id})}
                                     className={clsx(
-                                        "text-xs px-2 py-2 rounded-md border transition-colors text-left truncate",
+                                        "text-xs px-2 py-2 rounded-md border transition-colors text-left min-h-[36px]",
                                         editingItem.category_id === cat.id 
                                             ? "bg-brand-50 border-brand-500 text-brand-700 font-medium" 
                                             : "bg-white border-gray-200 text-gray-600"
@@ -585,7 +585,7 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, cur
                                 >
                                     <div className="flex items-center gap-2">
                                         <div className="w-2 h-2 rounded-full flex-shrink-0" style={{backgroundColor: cat.color}}></div>
-                                        <span className="truncate">{cat.name}</span>
+                                        <span className="break-words leading-tight">{cat.name}</span>
                                     </div>
                                 </button>
                              ))}
