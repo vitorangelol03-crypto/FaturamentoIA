@@ -80,3 +80,38 @@ export async function extractReceiptData(base64Image: string, mimeType: string =
     };
   }
 }
+
+export interface KeyExtractionResult {
+  found: boolean;
+  access_key: string;
+  error?: string;
+}
+
+export async function extractAccessKey(base64Image: string, mimeType: string = 'image/jpeg'): Promise<KeyExtractionResult> {
+  try {
+    const cleanBase64 = base64Image.includes(",")
+      ? base64Image.split(",")[1]
+      : base64Image;
+
+    const response = await fetch('/api/extract-key', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image: cleanBase64, mimeType: mimeType || 'image/jpeg' })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      return { found: false, access_key: '', error: errorData.details || errorData.error || `Erro HTTP ${response.status}` };
+    }
+
+    const data = await response.json();
+    return {
+      found: data.found === true && data.access_key?.length === 44,
+      access_key: data.access_key || '',
+      error: data.error
+    };
+  } catch (error: any) {
+    console.error("Erro na extração de chave:", error);
+    return { found: false, access_key: '', error: error.message || "Falha na conexão" };
+  }
+}

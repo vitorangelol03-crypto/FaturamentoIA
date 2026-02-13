@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { RefreshCw, Download, Search, FileText, Eye, AlertCircle, CheckCircle, X, Clock, XCircle, ArrowLeftRight } from 'lucide-react';
+import { RefreshCw, Download, Search, FileText, AlertCircle, CheckCircle, X, Clock, XCircle, ArrowLeftRight, Camera, Upload, Key, Loader2 } from 'lucide-react';
 import { User, SefazNote, SefazDocZip, Category } from '../types';
-import { syncSefazNotes, getSefazNotes, saveSefazNote, getLastNSU, updateLastNSU, linkReceiptsToSefazNotes, getLinkedReceiptImages, SefazApiError } from '../services/sefazService';
+import { syncSefazNotes, getSefazNotes, saveSefazNote, getLastNSU, updateLastNSU, linkReceiptsToSefazNotes, getLinkedReceiptImages, SefazApiError, consultarChave } from '../services/sefazService';
 import { generateDanfePDF, generateSefazReportPDF } from '../services/pdfService';
+import { extractAccessKey } from '../services/geminiService';
 import { clsx } from 'clsx';
 import { notificationService } from '../services/notificationService';
 import { supabase } from '../services/supabaseClient';
@@ -272,6 +273,15 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categor
   const [filterCategories, setFilterCategories] = useState<Category[]>(categories);
   const [selectedCatFilter, setSelectedCatFilter] = useState<string[]>([]);
 
+  const [showKeyLookup, setShowKeyLookup] = useState(false);
+  const [keyInput, setKeyInput] = useState('');
+  const [keyLookupLoading, setKeyLookupLoading] = useState(false);
+  const [keyLookupStep, setKeyLookupStep] = useState<'input' | 'extracting' | 'querying' | 'result' | 'error'>('input');
+  const [keyLookupResult, setKeyLookupResult] = useState<Partial<SefazNote> | null>(null);
+  const [keyLookupError, setKeyLookupError] = useState<string>('');
+  const [keyLookupSaving, setKeyLookupSaving] = useState(false);
+  const [keyLookupSaved, setKeyLookupSaved] = useState(false);
+
   useEffect(() => {
     if (categorySourceUserId === 'mine') {
       setFilterCategories(categories);
@@ -293,10 +303,24 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categor
     setViewingXml(null);
   }, []);
 
+  const closeKeyLookup = useCallback(() => {
+    setShowKeyLookup(false);
+    setKeyInput('');
+    setKeyLookupStep('input');
+    setKeyLookupResult(null);
+    setKeyLookupError('');
+    setKeyLookupSaved(false);
+  }, []);
+
   useEffect(() => {
     registerOverlayClose('sefaz-detail', closeSefazDetail);
     return () => unregisterOverlayClose('sefaz-detail');
   }, [closeSefazDetail, registerOverlayClose, unregisterOverlayClose]);
+
+  useEffect(() => {
+    registerOverlayClose('key-lookup', closeKeyLookup);
+    return () => unregisterOverlayClose('key-lookup');
+  }, [closeKeyLookup, registerOverlayClose, unregisterOverlayClose]);
 
   const defaultLocation = currentUser.location || 'Caratinga';
   const accessibleLocations: string[] = currentUser.sefaz_access && currentUser.sefaz_access.length > 0
@@ -339,6 +363,114 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categor
   useEffect(() => {
     loadData();
   }, [activeLocation]);
+
+  const handleKeyLookupFromImage = async (file: File) => {
+    setKeyLookupLoading(true);
+    setKeyLookupStep('extracting');
+    setKeyLookupError('');
+
+    try {
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      const result = await extractAccessKey(base64, file.type || 'image/jpeg');
+
+      if (!result.found || !result.access_key) {
+        setKeyLookupStep('error');
+        setKeyLookupError('Não foi possível encontrar uma chave de acesso válida (44 dígitos) nesta imagem.');
+        setKeyLookupLoading(false);
+        return;
+      }
+
+      setKeyInput(result.access_key);
+      await handleKeyQuery(result.access_key);
+    } catch (err: any) {
+      setKeyLookupStep('error');
+      setKeyLookupError(err.message || 'Erro ao processar a imagem.');
+      setKeyLookupLoading(false);
+    }
+  };
+
+  const handleKeyQuery = async (chave?: string) => {
+    const key = (chave || keyInput).replace(/\D/g, '');
+    if (key.length !== 44) {
+      setKeyLookupStep('error');
+      setKeyLookupError('A chave de acesso deve ter exatamente 44 dígitos numéricos.');
+      return;
+    }
+
+    setKeyLookupLoading(true);
+    setKeyLookupStep('querying');
+    setKeyLookupError('');
+
+    try {
+      const result = await consultarChave(key, activeLocation);
+
+      if (result.cStat === '137' || result.cStat === '656') {
+        setKeyLookupStep('error');
+        setKeyLookupError('Nenhum documento encontrado para esta chave de acesso.');
+        setKeyLookupLoading(false);
+        return;
+      }
+
+      if (result.documents && result.documents.length > 0) {
+        const doc = result.documents[0];
+        let parsed: Partial<SefazNote> | null = null;
+
+        if (doc.schema?.includes('resNFe')) {
+          parsed = parseResNFe(doc);
+        } else if (doc.schema?.includes('procNFe') || doc.json?.nfeProc) {
+          parsed = parseNfeProc(doc);
+        } else {
+          parsed = {
+            chave_acesso: key,
+            nsu: doc.nsu,
+            xml_completo: doc.xml,
+            status: 'desconhecido',
+          };
+        }
+
+        if (parsed) {
+          if (!parsed.chave_acesso) parsed.chave_acesso = key;
+          const cat = categorizeBySuplierName(parsed.emitente_nome || '', categories);
+          if (cat) parsed.category_id = cat.id;
+          setKeyLookupResult(parsed);
+          setKeyLookupStep('result');
+        } else {
+          setKeyLookupStep('error');
+          setKeyLookupError('Não foi possível interpretar os dados retornados pela SEFAZ.');
+        }
+      } else {
+        setKeyLookupStep('error');
+        setKeyLookupError(`SEFAZ retornou: ${result.cStat} - ${result.xMotivo || 'Nenhum documento encontrado.'}`);
+      }
+    } catch (err: any) {
+      setKeyLookupStep('error');
+      const msg = err instanceof SefazApiError ? err.message : (err.message || 'Erro ao consultar SEFAZ.');
+      setKeyLookupError(msg);
+    } finally {
+      setKeyLookupLoading(false);
+    }
+  };
+
+  const handleSaveKeyLookupResult = async () => {
+    if (!keyLookupResult) return;
+    setKeyLookupSaving(true);
+    try {
+      await saveSefazNote(keyLookupResult, activeLocation);
+      setKeyLookupSaved(true);
+      await loadData();
+      notificationService.notifySefazSync(1);
+    } catch (err: any) {
+      setKeyLookupError('Erro ao salvar nota: ' + (err.message || 'Erro desconhecido'));
+    } finally {
+      setKeyLookupSaving(false);
+    }
+  };
 
   const parseResNFe = (doc: SefazDocZip): Partial<SefazNote> | null => {
     const json = doc.json;
@@ -651,6 +783,13 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categor
           <span className="text-[10px] text-gray-400 flex-shrink-0">{notes.length} notas</span>
         </div>
         <div className="flex items-center gap-1.5 flex-shrink-0">
+          <button
+            onClick={() => { setShowKeyLookup(true); pushOverlay('key-lookup'); }}
+            className="p-2 rounded-lg text-brand-600 hover:bg-brand-50 active:scale-95 transition-all"
+            title="Consultar por chave de acesso"
+          >
+            <Key size={18} />
+          </button>
           {canSwitchLocation && (
             <button
               onClick={switchLocation}
@@ -929,6 +1068,222 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categor
               </div>
             );
           })}
+        </div>
+      )}
+
+      {showKeyLookup && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md max-h-[85vh] flex flex-col shadow-2xl">
+            <div className="flex items-center justify-between p-4 border-b">
+              <div className="flex items-center gap-2">
+                <Key size={16} className="text-brand-600" />
+                <h3 className="font-bold text-gray-800 text-sm">Consultar Chave de Acesso</h3>
+              </div>
+              <button onClick={() => closeOverlay('key-lookup')} className="text-gray-400 hover:text-gray-600">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-4 overflow-y-auto flex-1 space-y-4">
+
+              {keyLookupStep === 'input' && (
+                <>
+                  <p className="text-xs text-gray-500">Escaneie uma nota fiscal para extrair a chave ou digite manualmente.</p>
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        const input = document.createElement('input');
+                        input.type = 'file';
+                        input.accept = 'image/*';
+                        input.capture = 'environment';
+                        input.onchange = (e: any) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleKeyLookupFromImage(file);
+                        };
+                        input.click();
+                      }}
+                      className="flex-1 flex items-center justify-center gap-2 py-3 bg-brand-600 text-white rounded-xl text-sm font-semibold hover:bg-brand-700 transition-colors"
+                    >
+                      <Camera size={16} />
+                      Câmera
+                    </button>
+                    <button
+                      onClick={() => {
+                        const input = document.createElement('input');
+                        input.type = 'file';
+                        input.accept = 'image/*';
+                        input.onchange = (e: any) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleKeyLookupFromImage(file);
+                        };
+                        input.click();
+                      }}
+                      className="flex-1 flex items-center justify-center gap-2 py-3 bg-gray-100 text-gray-700 rounded-xl text-sm font-semibold hover:bg-gray-200 transition-colors"
+                    >
+                      <Upload size={16} />
+                      Galeria
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 h-px bg-gray-200" />
+                    <span className="text-[10px] text-gray-400 font-semibold uppercase">ou digite</span>
+                    <div className="flex-1 h-px bg-gray-200" />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-500 uppercase">Chave de Acesso (44 dígitos)</label>
+                    <input
+                      type="text"
+                      value={keyInput}
+                      onChange={(e) => setKeyInput(e.target.value.replace(/\D/g, '').slice(0, 44))}
+                      placeholder="00000000000000000000000000000000000000000000"
+                      className="w-full mt-1 px-3 py-2.5 rounded-lg border border-gray-200 text-xs font-mono tracking-wider focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                      maxLength={44}
+                    />
+                    <p className="text-[10px] text-gray-400 mt-1">{keyInput.length}/44 dígitos</p>
+                  </div>
+
+                  <button
+                    onClick={() => handleKeyQuery()}
+                    disabled={keyInput.replace(/\D/g, '').length !== 44}
+                    className={clsx(
+                      "w-full py-2.5 rounded-xl text-sm font-semibold transition-colors",
+                      keyInput.replace(/\D/g, '').length === 44
+                        ? "bg-brand-600 text-white hover:bg-brand-700"
+                        : "bg-gray-200 text-gray-400 cursor-not-allowed"
+                    )}
+                  >
+                    Consultar na SEFAZ
+                  </button>
+                </>
+              )}
+
+              {keyLookupStep === 'extracting' && (
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  <Loader2 size={32} className="animate-spin text-brand-600 mb-3" />
+                  <p className="text-sm font-semibold text-gray-700">Extraindo chave de acesso...</p>
+                  <p className="text-xs text-gray-400 mt-1">Analisando a imagem com IA</p>
+                </div>
+              )}
+
+              {keyLookupStep === 'querying' && (
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  <Loader2 size={32} className="animate-spin text-brand-600 mb-3" />
+                  <p className="text-sm font-semibold text-gray-700">Consultando SEFAZ...</p>
+                  <p className="text-xs text-gray-400 mt-1">Buscando dados da nota fiscal</p>
+                  {keyInput && (
+                    <p className="text-[10px] text-gray-400 mt-2 font-mono break-all px-4">{keyInput}</p>
+                  )}
+                </div>
+              )}
+
+              {keyLookupStep === 'error' && (
+                <div className="space-y-4">
+                  <div className="bg-red-50 border border-red-200 rounded-xl px-3.5 py-3">
+                    <div className="flex items-start gap-2.5">
+                      <AlertCircle size={16} className="text-red-600 flex-shrink-0 mt-0.5" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-bold text-red-800">Erro na consulta</p>
+                        <p className="text-[11px] text-red-700 mt-0.5">{keyLookupError}</p>
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setKeyLookupStep('input');
+                      setKeyLookupError('');
+                    }}
+                    className="w-full py-2.5 bg-gray-100 text-gray-700 rounded-xl text-sm font-semibold hover:bg-gray-200 transition-colors"
+                  >
+                    Tentar novamente
+                  </button>
+                </div>
+              )}
+
+              {keyLookupStep === 'result' && keyLookupResult && (
+                <div className="space-y-3">
+                  <div className="bg-green-50 border border-green-200 rounded-xl px-3.5 py-3">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle size={16} className="text-green-600" />
+                      <p className="text-xs font-bold text-green-800">Nota fiscal encontrada!</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div>
+                      <label className="text-[10px] font-bold text-gray-500 uppercase">Emitente</label>
+                      <p className="text-sm text-gray-800">{keyLookupResult.emitente_nome || '-'}</p>
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-gray-500 uppercase">CNPJ</label>
+                      <p className="text-sm text-gray-800">{keyLookupResult.emitente_cnpj || '-'}</p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[10px] font-bold text-gray-500 uppercase">Número</label>
+                        <p className="text-sm text-gray-800">{keyLookupResult.numero_nota || '-'}{keyLookupResult.serie ? ` / Série ${keyLookupResult.serie}` : ''}</p>
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-bold text-gray-500 uppercase">Data Emissão</label>
+                        <p className="text-sm text-gray-800">{formatDate(keyLookupResult.data_emissao)}</p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[10px] font-bold text-gray-500 uppercase">Valor Total</label>
+                        <p className="text-sm font-bold text-brand-600">{formatCurrency(keyLookupResult.valor_total)}</p>
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-bold text-gray-500 uppercase">Status</label>
+                        <div className="mt-0.5">{getStatusBadge(keyLookupResult.status)}</div>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-gray-500 uppercase">Chave de Acesso</label>
+                      <p className="text-xs text-gray-700 font-mono break-all">{keyLookupResult.chave_acesso}</p>
+                    </div>
+                  </div>
+
+                  {keyLookupSaved ? (
+                    <div className="bg-green-50 rounded-xl px-3.5 py-3 flex items-center gap-2">
+                      <CheckCircle size={14} className="text-green-600" />
+                      <span className="text-xs font-semibold text-green-700">Nota salva com sucesso!</span>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={handleSaveKeyLookupResult}
+                      disabled={keyLookupSaving}
+                      className={clsx(
+                        "w-full py-2.5 rounded-xl text-sm font-semibold transition-colors flex items-center justify-center gap-2",
+                        keyLookupSaving
+                          ? "bg-brand-400 text-white cursor-not-allowed"
+                          : "bg-brand-600 text-white hover:bg-brand-700"
+                      )}
+                    >
+                      {keyLookupSaving ? (
+                        <><Loader2 size={14} className="animate-spin" /> Salvando...</>
+                      ) : (
+                        <><Download size={14} /> Salvar nota</>
+                      )}
+                    </button>
+                  )}
+
+                  <button
+                    onClick={() => {
+                      setKeyLookupStep('input');
+                      setKeyInput('');
+                      setKeyLookupResult(null);
+                      setKeyLookupSaved(false);
+                    }}
+                    className="w-full py-2.5 bg-gray-100 text-gray-700 rounded-xl text-sm font-semibold hover:bg-gray-200 transition-colors"
+                  >
+                    Nova consulta
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
 

@@ -153,6 +153,50 @@ export default defineConfig({
             }
           });
         });
+
+        server.middlewares.use('/api/extract-key', async (req, res) => {
+          if (req.method === 'OPTIONS') {
+            res.writeHead(200, {
+              'Access-Control-Allow-Origin': '*',
+              'Access-Control-Allow-Methods': 'POST,OPTIONS',
+              'Access-Control-Allow-Headers': 'Content-Type',
+            });
+            res.end();
+            return;
+          }
+
+          if (req.method !== 'POST') {
+            res.writeHead(405, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Method not allowed' }));
+            return;
+          }
+
+          let body = '';
+          req.on('data', (chunk: Buffer) => { body += chunk.toString(); });
+          req.on('end', async () => {
+            try {
+              const parsedBody = JSON.parse(body);
+              // @ts-ignore - JS module without type declarations
+              const handler = (await import('./api/extract-key.js')).default;
+              const fakeReq = { method: 'POST', body: parsedBody } as any;
+              const fakeRes = {
+                setHeader: () => {},
+                status: (code: number) => ({
+                  json: (data: any) => {
+                    res.writeHead(code, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify(data));
+                  },
+                  end: () => { res.writeHead(code); res.end(); }
+                }),
+              } as any;
+              await handler(fakeReq, fakeRes);
+            } catch (error: any) {
+              console.error('Extract key API error:', error);
+              res.writeHead(500, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ error: 'Processing error', details: error.message }));
+            }
+          });
+        });
       },
     },
   ],
