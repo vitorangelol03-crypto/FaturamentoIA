@@ -388,15 +388,21 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categor
 
   useEffect(() => {
     const loadAllCategories = async () => {
-      const { data } = await supabase.from('categories').select('*');
-      if (data) {
-        const map = new Map<string, Category[]>();
-        for (const cat of data) {
-          const userId = cat.user_id || 'unknown';
-          if (!map.has(userId)) map.set(userId, []);
-          map.get(userId)!.push(cat as Category);
+      try {
+        const { data, error } = await supabase.from('categories').select('*');
+        if (error) { console.error('Erro ao carregar categorias:', error); return; }
+        if (data) {
+          const map = new Map<string, Category[]>();
+          for (const cat of data) {
+            if (!cat.name) continue;
+            const userId = cat.user_id || 'unknown';
+            if (!map.has(userId)) map.set(userId, []);
+            map.get(userId)!.push(cat as Category);
+          }
+          setAllUserCategories(map);
         }
-        setAllUserCategories(map);
+      } catch (err) {
+        console.error('Erro ao carregar categorias:', err);
       }
     };
     loadAllCategories();
@@ -711,7 +717,12 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categor
     if (categorySourceUserId === 'auto') return availableCategories;
     const userId = categorySourceUserId === 'mine' ? currentUser.id : categorySourceUserId;
     const userCats = allUserCategories.get(userId);
-    if (userCats) return userCats.map(c => ({ name: c.name, color: c.color })).sort((a, b) => a.name.localeCompare(b.name));
+    if (userCats && userCats.length > 0) {
+      return userCats
+        .filter(c => c.name)
+        .map(c => ({ name: c.name, color: c.color || '#6B7280' }))
+        .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    }
     return availableCategories;
   }, [categorySourceUserId, availableCategories, allUserCategories, currentUser.id]);
 
@@ -730,7 +741,7 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categor
       }
     }
     return Array.from(map.values()).sort((a, b) => b.total - a.total);
-  }, [filteredNotes, categories]);
+  }, [filteredNotes, categories, receiptCategoryMap]);
 
   const getPeriodLabel = (): string => {
     const now = new Date();
@@ -973,8 +984,8 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categor
           >
             <option value="auto">Categorias das notas</option>
             <option value="mine">Minhas categorias</option>
-            {users.filter(u => u.id !== currentUser.id).map(u => (
-              <option key={u.id} value={u.id}>{u.full_name}</option>
+            {(users || []).filter(u => u.id !== currentUser.id).map(u => (
+              <option key={u.id} value={u.id}>{u.full_name || u.username}</option>
             ))}
           </select>
         </div>
@@ -988,10 +999,10 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categor
           >
             Todas
           </button>
-          {displayFilterCategories.map(cat => (
+          {(displayFilterCategories || []).map(cat => (
             <button
-              key={cat.name}
-              onClick={() => setSelectedCatFilter(prev => prev.includes(cat.name) ? prev.filter(c => c !== cat.name) : [...prev, cat.name])}
+              key={cat.name || 'unknown'}
+              onClick={() => { if (cat.name) setSelectedCatFilter(prev => prev.includes(cat.name) ? prev.filter(c => c !== cat.name) : [...prev, cat.name]); }}
               className={clsx(
                 "px-2.5 py-1 rounded-full text-[11px] font-medium whitespace-nowrap transition-colors flex items-center gap-1",
                 selectedCatFilter.includes(cat.name) ? "bg-brand-50 text-brand-700 border border-brand-600" : "bg-gray-100 text-gray-500 hover:bg-gray-200"
