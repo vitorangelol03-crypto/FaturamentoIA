@@ -234,6 +234,15 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
                             </div>
                         </div>
 
+                        {viewingReceipt.observations && (
+                            <div className="bg-amber-50/50 border border-amber-100 rounded-xl p-4">
+                                <h4 className="text-[10px] font-bold text-amber-800 uppercase mb-2 flex items-center gap-1.5">
+                                    <FileText size={12} /> Observações
+                                </h4>
+                                <p className="text-sm text-amber-900 whitespace-pre-wrap">{viewingReceipt.observations}</p>
+                            </div>
+                        )}
+
                         {viewingReceipt.items && viewingReceipt.items.length > 0 && (
                             <div>
                                 <h4 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2"><FileText size={16} /> Itens Extraídos</h4>
@@ -366,6 +375,16 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
                             </div>
                         </div>
                     )}
+                    <div>
+                        <label className="block text-xs font-bold text-gray-400 uppercase mb-1.5">Observações</label>
+                        <textarea
+                            value={editingReceipt.observations || ''}
+                            onChange={(e) => setEditingReceipt({...editingReceipt, observations: e.target.value})}
+                            placeholder="Adicionar observações sobre esta nota..."
+                            rows={3}
+                            className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:ring-2 ring-brand-500 outline-none resize-none"
+                        />
+                    </div>
                 </div>
                 <div className="flex-shrink-0 p-4 pb-[max(1rem,env(safe-area-inset-bottom,1rem))] border-t border-gray-100 bg-gray-50 flex gap-3">
                     <button
@@ -386,6 +405,7 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
                                     total_amount: editingReceipt.total_amount,
                                     category_id: editingReceipt.category_id,
                                     location: editingReceipt.location,
+                                    observations: editingReceipt.observations || null,
                                 }).eq('id', editingReceipt.id);
                                 if (error) throw error;
                                 setEditingReceipt(null);
