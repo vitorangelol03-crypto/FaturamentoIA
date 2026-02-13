@@ -662,6 +662,14 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categor
     return null;
   };
 
+  const getCategoryForNote = (note: SefazNote): { name: string; color: string } | null => {
+    if (note.receipt_id) {
+      const receiptCat = receiptCategoryMap.get(note.receipt_id);
+      if (receiptCat) return receiptCat;
+    }
+    return categorizeBySuplierName(note.emitente_nome || '', note.xml_completo);
+  };
+
   const filteredNotes = useMemo(() => {
     const range = getDateRange(periodFilter);
     return notes.filter(note => {
@@ -691,14 +699,6 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categor
   const totalFiltered = useMemo(() => {
     return filteredNotes.reduce((sum, n) => sum + (n.valor_total || 0), 0);
   }, [filteredNotes]);
-
-  const getCategoryForNote = (note: SefazNote): { name: string; color: string } | null => {
-    if (note.receipt_id) {
-      const receiptCat = receiptCategoryMap.get(note.receipt_id);
-      if (receiptCat) return receiptCat;
-    }
-    return categorizeBySuplierName(note.emitente_nome || '', note.xml_completo);
-  };
 
   const availableCategories = useMemo(() => {
     const map = new Map<string, { name: string; color: string }>();
