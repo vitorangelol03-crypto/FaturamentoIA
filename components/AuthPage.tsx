@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { authService } from '../services/authService';
 import { User } from '../types';
-import { FileText, Loader2, User as UserIcon, Lock, ArrowRight, UserPlus, CheckCircle, Clock } from 'lucide-react';
+import { FileText, Loader2, User as UserIcon, Lock, ArrowRight, UserPlus, Clock } from 'lucide-react';
 import { clsx } from 'clsx';
 
 interface AuthPageProps {

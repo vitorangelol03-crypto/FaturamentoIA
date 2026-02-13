@@ -1,8 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { Receipt, Category, PeriodFilter } from '../types';
-import { PieChart, Pie, Cell, ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip as RechartsTooltip, AreaChart, Area } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, XAxis, YAxis, Tooltip as RechartsTooltip, AreaChart, Area } from 'recharts';
 import { clsx } from 'clsx';
-import { ArrowUpRight, Calendar, CreditCard, PieChart as PieChartIcon, Filter } from 'lucide-react';
+import { ArrowUpRight, CreditCard, PieChart as PieChartIcon } from 'lucide-react';
 
 interface DashboardProps {
   receipts: Receipt[];

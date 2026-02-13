@@ -1,10 +1,10 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Receipt, Category, ViewMode, PeriodFilter, User } from '../types';
 import { 
-  LayoutGrid, List, AlignJustify, Search, ChevronDown, ChevronUp, 
+  LayoutGrid, List, AlignJustify, Search,
   Image as ImageIcon, Filter, Edit2, X, Save, Loader2, Download, Trash2,
-  Maximize2, Calendar, CreditCard, Tag, FileText, MapPin, Lock, CheckCircle,
-  Clock, User as UserIcon, Shield, Activity, AlertCircle, FileDown
+  FileText, Lock, CheckCircle,
+  Clock, User as UserIcon, Shield, FileDown
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { generatePDFReport, generateSingleReceiptPDF } from '../services/pdfService';

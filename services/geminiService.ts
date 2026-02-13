@@ -1,6 +1,3 @@
-
-import '../constants';
-
 export interface ExtractionResult {
   readable: boolean;
   establishment?: string;

@@ -1,10 +1,8 @@
 
-import React, { useEffect, useState, useRef } from 'react';
-import { User, Receipt } from '../types';
+import React, { useEffect, useState } from 'react';
+import { User } from '../types';
 import { authService } from '../services/authService';
-import { supabase } from '../services/supabaseClient';
-import { REQUIRED_CNPJ } from '../constants';
-import { Check, X, Shield, RefreshCw, User as UserIcon, Loader2, Users, UserCog, Key, Trash2, Ban, Search, Save, Edit, MapPin, FileText, ExternalLink, DollarSign, Eye, Calendar, CreditCard, Tag, Maximize2, Image as ImageIcon, Clock, Activity, AlertCircle, Wifi, Globe, Smartphone, DownloadCloud, Server } from 'lucide-react';
+import { Check, X, Shield, RefreshCw, User as UserIcon, Loader2, Users, UserCog, Key, Trash2, Ban, Search, Save, Edit, MapPin } from 'lucide-react';
 import { clsx } from 'clsx';
 
 type AdminTab = 'pending' | 'manage'; // Removido 'audit'

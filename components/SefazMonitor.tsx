@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { RefreshCw, Download, Search, FileText, Eye, AlertCircle, CheckCircle, X, Clock, Filter, XCircle, Calendar, Tag, ArrowLeftRight } from 'lucide-react';
+import { RefreshCw, Download, Search, FileText, Eye, AlertCircle, CheckCircle, X, Clock, XCircle, ArrowLeftRight } from 'lucide-react';
 import { User, SefazNote, SefazDocZip, Category } from '../types';
 import { syncSefazNotes, getSefazNotes, saveSefazNote, getLastNSU, updateLastNSU, linkReceiptsToSefazNotes, getLinkedReceiptImages, SefazApiError } from '../services/sefazService';
 import { generateDanfePDF, generateSefazReportPDF } from '../services/pdfService';

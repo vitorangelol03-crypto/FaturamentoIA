@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Camera, Upload, X, CheckCircle, XCircle, Loader2, Play, Pause, AlertTriangle, FileText, ArrowRight, Save, Edit2, RotateCcw, Image as ImageIcon, Zap, Check, MapPin } from 'lucide-react';
+import { Camera, Upload, X, CheckCircle, XCircle, Loader2, AlertTriangle, FileText, Save, Edit2, RotateCcw, Image as ImageIcon, Zap, Check, MapPin } from 'lucide-react';
 import { extractReceiptData, ExtractionResult } from '../services/geminiService';
 import { Category, User } from '../types';
 import { supabase } from '../services/supabaseClient';

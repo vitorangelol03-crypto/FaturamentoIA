@@ -106,11 +106,13 @@ export async function updateLastNSU(nsu: string, location: string = 'Caratinga')
 }
 
 export async function linkReceiptsToSefazNotes(location: string = 'Caratinga'): Promise<{ linked: number }> {
-  const { data: unlinkedNotes, error: notesError } = await supabase
+  const { data: unlinkedNotes } = await supabase
     .from('sefaz_notes')
     .select('id, chave_acesso, receipt_id')
     .eq('location', location)
     .is('receipt_id', null);
+
+  if (!unlinkedNotes || unlinkedNotes.length === 0) return { linked: 0 };
 
   const { data: receipts, error: receiptsError } = await supabase
     .from('receipts')

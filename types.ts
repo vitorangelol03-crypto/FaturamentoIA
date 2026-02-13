@@ -48,14 +48,6 @@ export type ViewMode = 'list' | 'grid' | 'compact';
 
 export type PeriodFilter = 'current_month' | 'last_month' | 'last_3_months' | 'year' | 'custom';
 
-export interface FilterState {
-  period: PeriodFilter;
-  customStartDate?: string;
-  customEndDate?: string;
-  categories: string[];
-  searchQuery: string;
-}
-
 export interface SefazNote {
   id?: string;
   chave_acesso: string;

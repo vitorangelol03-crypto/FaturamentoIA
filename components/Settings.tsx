@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Category, Receipt } from '../types';
-import { Trash2, Plus, Download, BarChart2, AlertTriangle, Eraser, X, Calendar, Loader2, Edit2, Check, Palette } from 'lucide-react';
+import { Trash2, Plus, Download, BarChart2, AlertTriangle, Eraser, X, Calendar, Loader2, Check, Palette } from 'lucide-react';
 import { supabase } from '../services/supabaseClient';
 import { clsx } from 'clsx';
 

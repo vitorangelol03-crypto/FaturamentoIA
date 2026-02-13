@@ -258,8 +258,6 @@ export const generatePDFReport = async (
     headStyles: { fillColor: [2, 132, 199] },
   });
 
-  let finalY = (doc as any).lastAutoTable.finalY;
-
   // -- Images (Merged) --
   if (includeImages) {
     doc.addPage();
