@@ -366,7 +366,7 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, cur
 
       const matchedCategory = categories.find(c => 
           c.name.toLowerCase() === rawData.suggested_category?.toLowerCase()
-      ) || categories.find(c => c.is_default) || categories[0];
+      ) || categories.find(c => c.is_default) || categories[0] || { id: '', name: 'Sem categoria', color: '#6B7280' };
 
       updateItem(nextItem.id, { 
           status: 'saving', 

@@ -239,7 +239,7 @@ export const Settings: React.FC<SettingsProps> = ({ categories, receipts, refres
                     </div>
                 </div>
                 <div className="flex border-t border-gray-100">
-                    {catModal.mode === 'edit' && catModal.id && !categories.find(c => c.id === catModal.id)?.is_default && (
+                    {catModal.mode === 'edit' && catModal.id && (
                         <button
                             onClick={() => { if (confirm('Excluir esta categoria? Notas associadas ficarão sem categoria.')) { deleteCategory(catModal.id!); setCatModal(null); } }}
                             disabled={deletingCatId === catModal.id}
