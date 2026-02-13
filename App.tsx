@@ -204,7 +204,59 @@ export default function App() {
       }
 
       const { data: recData } = await query;
-      if (recData) setReceipts(recData as any);
+      const receiptsArr = (recData || []) as any[];
+
+      const needsBackfill = receiptsArr.filter(
+        (r: any) => r.category_id && (!r.category_name || r.category_name === '')
+      );
+
+      if (needsBackfill.length > 0) {
+        const catIds = [...new Set(needsBackfill.map((r: any) => r.category_id))];
+        const { data: allCats } = await supabase
+          .from('categories')
+          .select('id, name, color')
+          .in('id', catIds);
+
+        if (allCats && allCats.length > 0) {
+          const catMap = new Map(allCats.map((c: any) => [c.id, c]));
+
+          for (const receipt of needsBackfill) {
+            const cat = catMap.get(receipt.category_id);
+            if (cat) {
+              receipt.category_name = cat.name;
+              receipt.category_color = cat.color;
+            }
+          }
+
+          const updates = needsBackfill
+            .filter((r: any) => r.category_name)
+            .map((r: any) => ({
+              id: r.id,
+              category_name: r.category_name,
+              category_color: r.category_color,
+            }));
+
+          if (updates.length > 0) {
+            try {
+              const BATCH = 50;
+              for (let i = 0; i < updates.length; i += BATCH) {
+                const batch = updates.slice(i, i + BATCH);
+                await Promise.all(
+                  batch.map((u: any) =>
+                    supabase.from('receipts')
+                      .update({ category_name: u.category_name, category_color: u.category_color })
+                      .eq('id', u.id)
+                  )
+                );
+              }
+            } catch (backfillErr) {
+              console.error('Erro no backfill de categorias:', backfillErr);
+            }
+          }
+        }
+      }
+
+      setReceipts(receiptsArr);
 
       const { data: linkedData } = await supabase
         .from('sefaz_notes')
