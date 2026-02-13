@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Camera, Upload, X, CheckCircle, XCircle, Loader2, AlertTriangle, FileText, Save, Edit2, RotateCcw, Image as ImageIcon, Zap, Check, MapPin } from 'lucide-react';
 import { extractReceiptData, ExtractionResult } from '../services/geminiService';
-import { Category, User } from '../types';
+import { Category, User, isAdmin as checkIsAdmin } from '../types';
 import { supabase } from '../services/supabaseClient';
 import { clsx } from 'clsx';
 import { REQUIRED_CNPJ } from '../constants';
@@ -58,7 +58,7 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, cur
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Helper
-  const isAdmin = currentUser.role === 'admin' || currentUser.username === 'zoork22';
+  const isAdmin = checkIsAdmin(currentUser);
 
   const showCameraToast = (type: 'success' | 'error' | 'processing', message: string, duration: number = 3000) => {
     if (cameraToastTimer.current) clearTimeout(cameraToastTimer.current);

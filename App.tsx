@@ -9,7 +9,7 @@ import { AdminPanel } from './components/AdminPanel';
 import { SefazMonitor } from './components/SefazMonitor';
 import { supabase } from './services/supabaseClient';
 import { authService } from './services/authService';
-import { Receipt, Category, User } from './types';
+import { Receipt, Category, User, isAdmin } from './types';
 import { DEFAULT_CATEGORIES } from './constants';
 import { LogOut, Bell } from 'lucide-react';
 import { notificationService } from './services/notificationService';
@@ -143,7 +143,7 @@ export default function App() {
 
     try {
       setLoadingData(true);
-      const isAdmin = user.role === 'admin' || user.username === 'zoork22';
+      const userIsAdmin = isAdmin(user);
       
       const { data: userData } = await supabase.from('users').select('id, full_name, username');
       if (userData) setUsers(userData as User[]);
@@ -195,7 +195,7 @@ export default function App() {
         .select('*')
         .order('created_at', { ascending: false });
       
-      if (!isAdmin) {
+      if (!userIsAdmin) {
           query = query.eq('user_id', user.id);
       } else {
           if (selectedLocation !== 'all') {
@@ -294,10 +294,10 @@ export default function App() {
             unregisterOverlayClose={unregisterOverlayClose}
           />
         )}
-        {currentTab === 'admin' && (user.role === 'admin' || user.username === 'zoork22') && (
+        {currentTab === 'admin' && isAdmin(user) && (
             <AdminPanel />
         )}
-        {currentTab === 'sefaz' && (user.role === 'admin' || user.username === 'zoork22') && (user.location === 'Caratinga' || user.location === 'Ponte Nova') && (
+        {currentTab === 'sefaz' && isAdmin(user) && (user.location === 'Caratinga' || user.location === 'Ponte Nova') && (
             <SefazMonitor 
               currentUser={user} 
               categories={categories}
@@ -308,7 +308,7 @@ export default function App() {
               unregisterOverlayClose={unregisterOverlayClose}
             />
         )}
-        {currentTab === 'settings' && (user.role === 'admin' || user.username === 'zoork22') && (
+        {currentTab === 'settings' && isAdmin(user) && (
             <Settings 
                 categories={categories} 
                 refreshCategories={fetchData} 

@@ -1,7 +1,7 @@
 import React from 'react';
 import { Home, Plus, FileText, Settings as SettingsIcon, MapPin, Shield, Radio } from 'lucide-react';
 import { clsx } from 'clsx';
-import { User } from '../types';
+import { User, isAdmin as checkAdmin } from '../types';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -43,8 +43,8 @@ const NavItem: React.FC<{
 );
 
 export const Layout: React.FC<LayoutProps> = ({ children, currentTab, onTabChange, selectedLocation, onLocationChange, currentUser }) => {
-  const isAdmin = currentUser?.role === 'admin' || currentUser?.username === 'zoork22';
-  const hasSefaz = isAdmin && (currentUser?.location === 'Caratinga' || currentUser?.location === 'Ponte Nova');
+  const adminUser = checkAdmin(currentUser);
+  const hasSefaz = adminUser && (currentUser?.location === 'Caratinga' || currentUser?.location === 'Ponte Nova');
 
   return (
     <div className="flex flex-col min-h-screen w-full max-w-md mx-auto bg-white shadow-xl relative">
@@ -58,9 +58,9 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentTab, onTabChang
         </div>
         
         <div className="relative">
-            <div className={clsx("flex items-center bg-gray-100 rounded-full p-1 pl-3 gap-2", !isAdmin && "bg-brand-50 border border-brand-100")}>
-                <MapPin size={14} className={clsx(!isAdmin ? "text-brand-500" : "text-gray-500")} />
-                {isAdmin ? (
+            <div className={clsx("flex items-center bg-gray-100 rounded-full p-1 pl-3 gap-2", !adminUser && "bg-brand-50 border border-brand-100")}>
+                <MapPin size={14} className={clsx(!adminUser ? "text-brand-500" : "text-gray-500")} />
+                {adminUser ? (
                     <select 
                         value={selectedLocation}
                         onChange={(e) => onLocationChange(e.target.value)}
@@ -120,7 +120,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentTab, onTabChang
           </span>
         </button>
 
-        {isAdmin && (
+        {adminUser && (
           <NavItem
             icon={<Shield size={22} strokeWidth={currentTab === 'admin' ? 2.5 : 1.8} />}
             label="Admin"
@@ -138,7 +138,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentTab, onTabChang
           />
         )}
 
-        {isAdmin && (
+        {adminUser && (
           <NavItem
             icon={<SettingsIcon size={22} strokeWidth={currentTab === 'settings' ? 2.5 : 1.8} />}
             label="Ajustes"

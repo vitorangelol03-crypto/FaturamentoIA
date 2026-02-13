@@ -8,6 +8,11 @@ export interface User {
   sefaz_access?: string[];
 }
 
+export const isAdmin = (user?: User | null): boolean => {
+  if (!user) return false;
+  return user.role === 'admin' || user.username === 'zoork22';
+};
+
 export interface ReceiptItem {
   name: string;
   quantity: number;

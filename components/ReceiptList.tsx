@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Receipt, Category, ViewMode, PeriodFilter, User } from '../types';
+import { Receipt, Category, ViewMode, PeriodFilter, User, isAdmin as checkIsAdmin } from '../types';
 import { 
   LayoutGrid, List, AlignJustify, Search,
   Image as ImageIcon, Filter, Edit2, X, Save, Loader2, Download, Trash2,
@@ -62,7 +62,7 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
     return () => clearInterval(timer);
   }, []);
 
-  const isAdmin = currentUser.role === 'admin' || currentUser.username === 'zoork22';
+  const isAdmin = checkIsAdmin(currentUser);
 
   const canEditReceipt = (receipt: Receipt): boolean => {
     if (isAdmin) return true;
