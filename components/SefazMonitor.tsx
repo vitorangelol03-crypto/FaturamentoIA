@@ -225,10 +225,32 @@ function normalizeText(text: string): string {
     .trim();
 }
 
-function categorizeBySuplierName(emitenteName: string, categories: Category[]): Category | null {
-  if (!emitenteName) return null;
-  const nameLower = emitenteName.toLowerCase();
-  const nameNormalized = normalizeText(emitenteName);
+const CATEGORY_COLORS: Record<string, string> = {
+  'Alimentação': '#EF4444',
+  'Transporte': '#3B82F6',
+  'Saúde': '#10B981',
+  'Moradia': '#F59E0B',
+  'Lazer': '#8B5CF6',
+  'Educação': '#EC4899',
+  'Vestuário': '#6366F1',
+  'Tecnologia': '#06B6D4',
+  'Serviços': '#F97316',
+  'Agropecuária': '#84CC16',
+  'Outros': '#6B7280',
+};
+
+function categorizeBySuplierName(emitenteName: string, xmlCompleto?: string): { name: string; color: string } | null {
+  if (!emitenteName && !xmlCompleto) return null;
+  const nameLower = (emitenteName || '').toLowerCase();
+  const nameNormalized = normalizeText(emitenteName || '');
+
+  let natOp = '';
+  if (xmlCompleto) {
+    const natOpMatch = xmlCompleto.match(/<natOp>([^<]+)<\/natOp>/i);
+    if (natOpMatch) {
+      natOp = natOpMatch[1].toLowerCase();
+    }
+  }
 
   let bestMatch: { catName: string; priority: number } | null = null;
 
@@ -236,7 +258,7 @@ function categorizeBySuplierName(emitenteName: string, categories: Category[]): 
     if (keywords.length === 0) continue;
     for (const kw of keywords) {
       const kwNormalized = normalizeText(kw);
-      if (nameLower.includes(kw) || nameNormalized.includes(kwNormalized)) {
+      if (nameLower.includes(kw) || nameNormalized.includes(kwNormalized) || (natOp && natOp.includes(kw))) {
         const priority = kw.length;
         if (!bestMatch || priority > bestMatch.priority) {
           bestMatch = { catName, priority };
@@ -246,8 +268,7 @@ function categorizeBySuplierName(emitenteName: string, categories: Category[]): 
   }
 
   if (bestMatch) {
-    const found = categories.find(c => c.name.toLowerCase() === bestMatch!.catName.toLowerCase());
-    if (found) return found;
+    return { name: bestMatch.catName, color: CATEGORY_COLORS[bestMatch.catName] || '#6B7280' };
   }
   return null;
 }
@@ -269,8 +290,6 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categor
   const [linkFilter, setLinkFilter] = useState<'all' | 'linked' | 'unlinked'>('all');
   const [dateStart, setDateStart] = useState('');
   const [dateEnd, setDateEnd] = useState('');
-  const [categorySourceUserId, setCategorySourceUserId] = useState<string>('mine');
-  const [filterCategories, setFilterCategories] = useState<Category[]>(categories);
   const [selectedCatFilter, setSelectedCatFilter] = useState<string[]>([]);
 
   const [showKeyLookup, setShowKeyLookup] = useState(false);
@@ -281,23 +300,6 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categor
   const [keyLookupError, setKeyLookupError] = useState<string>('');
   const [keyLookupSaving, setKeyLookupSaving] = useState(false);
   const [keyLookupSaved, setKeyLookupSaved] = useState(false);
-
-  useEffect(() => {
-    if (categorySourceUserId === 'mine') {
-      setFilterCategories(categories);
-      setSelectedCatFilter([]);
-    } else {
-      supabase
-        .from('categories')
-        .select('*')
-        .eq('user_id', categorySourceUserId)
-        .order('name')
-        .then(({ data }) => {
-          setFilterCategories(data || []);
-          setSelectedCatFilter([]);
-        });
-    }
-  }, [categorySourceUserId, categories]);
 
   const closeSefazDetail = useCallback(() => {
     setViewingXml(null);
@@ -436,8 +438,6 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categor
 
         if (parsed) {
           if (!parsed.chave_acesso) parsed.chave_acesso = key;
-          const cat = categorizeBySuplierName(parsed.emitente_nome || '', categories);
-          if (cat) parsed.category_id = cat.id;
           setKeyLookupResult(parsed);
           setKeyLookupStep('result');
         } else {
@@ -563,10 +563,6 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categor
         }
 
         if (parsed && parsed.chave_acesso) {
-          const cat = categorizeBySuplierName(parsed.emitente_nome || '', categories);
-          if (cat) {
-            parsed.category_id = cat.id;
-          }
           try {
             await saveSefazNote(parsed, activeLocation);
             savedCount++;
@@ -642,38 +638,51 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categor
       if (linkFilter === 'linked' && !note.receipt_id) return false;
       if (linkFilter === 'unlinked' && note.receipt_id) return false;
       if (selectedCatFilter.length > 0) {
-        const selectedNames = selectedCatFilter.map(id => filterCategories.find(c => c.id === id)?.name?.toLowerCase()).filter(Boolean);
         const noteCat = getCategoryForNote(note);
-        const noteCatName = noteCat?.name?.toLowerCase() || '';
-        if (!selectedNames.includes(noteCatName)) return false;
+        const noteCatName = noteCat?.name || 'Outros';
+        if (!selectedCatFilter.includes(noteCatName)) return false;
       }
       return true;
     });
-  }, [notes, searchQuery, periodFilter, dateStart, dateEnd, linkFilter, selectedCatFilter, filterCategories]);
+  }, [notes, searchQuery, periodFilter, dateStart, dateEnd, linkFilter, selectedCatFilter]);
 
   const totalFiltered = useMemo(() => {
     return filteredNotes.reduce((sum, n) => sum + (n.valor_total || 0), 0);
   }, [filteredNotes]);
 
-  const getCategoryForNote = (note: SefazNote): Category | null => {
+  const getCategoryForNote = (note: SefazNote): { name: string; color: string } | null => {
     if (note.category_id) {
-      return categories.find(c => c.id === note.category_id) || null;
+      const fromUser = categories.find(c => c.id === note.category_id);
+      if (fromUser) return { name: fromUser.name, color: fromUser.color };
     }
-    return categorizeBySuplierName(note.emitente_nome || '', categories);
+    return categorizeBySuplierName(note.emitente_nome || '', note.xml_completo);
   };
 
+  const availableCategories = useMemo(() => {
+    const map = new Map<string, { name: string; color: string }>();
+    for (const note of notes) {
+      const cat = getCategoryForNote(note);
+      const catName = cat?.name || 'Outros';
+      const catColor = cat?.color || '#6B7280';
+      if (!map.has(catName)) {
+        map.set(catName, { name: catName, color: catColor });
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [notes, categories]);
+
   const categorySummary = useMemo(() => {
-    const map = new Map<string, { category: Category; total: number; count: number }>();
+    const map = new Map<string, { name: string; color: string; total: number; count: number }>();
     for (const note of filteredNotes) {
       const cat = getCategoryForNote(note);
       const catName = cat?.name || 'Outros';
-      const catObj = cat || categories.find(c => c.name === 'Outros') || { id: '0', name: 'Outros', color: '#6B7280' };
+      const catColor = cat?.color || '#6B7280';
       const existing = map.get(catName);
       if (existing) {
         existing.total += note.valor_total || 0;
         existing.count += 1;
       } else {
-        map.set(catName, { category: catObj, total: note.valor_total || 0, count: 1 });
+        map.set(catName, { name: catName, color: catColor, total: note.valor_total || 0, count: 1 });
       }
     }
     return Array.from(map.values()).sort((a, b) => b.total - a.total);
@@ -911,19 +920,7 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categor
 
       {/* Filtro de Categorias */}
       <div>
-        <div className="flex items-center justify-between mb-2">
-          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Categorias</p>
-          <select
-            value={categorySourceUserId}
-            onChange={(e) => setCategorySourceUserId(e.target.value)}
-            className="text-[10px] bg-white border border-gray-200 rounded-md px-2 py-1 text-gray-600 focus:outline-none focus:border-brand-400"
-          >
-            <option value="mine">Minhas categorias</option>
-            {users.filter(u => u.id !== currentUser.id).map(u => (
-              <option key={u.id} value={u.id}>{u.full_name}</option>
-            ))}
-          </select>
-        </div>
+        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Categorias</p>
         <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
           <button
             onClick={() => setSelectedCatFilter([])}
@@ -934,13 +931,13 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categor
           >
             Todas
           </button>
-          {filterCategories.map(cat => (
+          {availableCategories.map(cat => (
             <button
-              key={cat.id}
-              onClick={() => setSelectedCatFilter(prev => prev.includes(cat.id) ? prev.filter(c => c !== cat.id) : [...prev, cat.id])}
+              key={cat.name}
+              onClick={() => setSelectedCatFilter(prev => prev.includes(cat.name) ? prev.filter(c => c !== cat.name) : [...prev, cat.name])}
               className={clsx(
                 "px-2.5 py-1 rounded-full text-[11px] font-medium whitespace-nowrap transition-colors flex items-center gap-1",
-                selectedCatFilter.includes(cat.id) ? "bg-brand-50 text-brand-700 border border-brand-600" : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                selectedCatFilter.includes(cat.name) ? "bg-brand-50 text-brand-700 border border-brand-600" : "bg-gray-100 text-gray-500 hover:bg-gray-200"
               )}
             >
               <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: cat.color }}></span>
@@ -1000,9 +997,9 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categor
           </div>
           <div className="space-y-1">
             {categorySummary.map(item => (
-              <div key={item.category.name} className="flex items-center gap-1.5">
-                <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: item.category.color }} />
-                <span className="text-[11px] text-gray-600 flex-1 truncate">{item.category.name}</span>
+              <div key={item.name} className="flex items-center gap-1.5">
+                <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: item.color }} />
+                <span className="text-[11px] text-gray-600 flex-1 truncate">{item.name}</span>
                 <span className="text-[10px] text-gray-400">{item.count}</span>
                 <span className="text-[11px] font-semibold text-gray-700 min-w-[70px] text-right">{formatCurrency(item.total)}</span>
               </div>

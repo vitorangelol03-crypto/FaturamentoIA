@@ -513,7 +513,7 @@ export const generateSefazReportPDF = async (
   categories: { id: string; name: string; color: string }[],
   location: string,
   periodLabel: string,
-  categorySummary: { category: { name: string; color: string }; total: number; count: number }[],
+  categorySummary: { name: string; color: string; total: number; count: number }[],
   linkedReceiptImages?: Map<string, string>
 ) => {
   if (!window.jspdf) {
@@ -586,7 +586,7 @@ export const generateSefazReportPDF = async (
     yPos += 3;
 
     const catTableData = categorySummary.map(item => [
-      item.category.name,
+      item.name,
       `${item.count}`,
       formatCurrencyBR(item.total),
       totalValue > 0 ? `${((item.total / totalValue) * 100).toFixed(1)}%` : '0%',
