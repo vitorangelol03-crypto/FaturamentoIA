@@ -155,15 +155,36 @@ export default function App() {
         .order('name');
 
       if (!catData || catData.length === 0) {
-        const defaultCats = DEFAULT_CATEGORIES.map(c => ({
-          name: c.name,
-          color: c.color,
-          is_default: false,
-          user_id: user.id
-        }));
-        const { data: inserted } = await supabase.from('categories').insert(defaultCats).select();
-        if (inserted && inserted.length > 0) {
-          setCategories(inserted);
+        const { data: legacyCats } = await supabase
+          .from('categories')
+          .select('*')
+          .is('user_id', null)
+          .order('name');
+
+        if (legacyCats && legacyCats.length > 0) {
+          const migrated = legacyCats.map(c => ({
+            name: c.name,
+            color: c.color,
+            is_default: false,
+            user_id: user.id
+          }));
+          const { data: inserted } = await supabase.from('categories').insert(migrated).select();
+          if (inserted && inserted.length > 0) {
+            setCategories(inserted);
+          } else {
+            setCategories(legacyCats);
+          }
+        } else {
+          const defaultCats = DEFAULT_CATEGORIES.map(c => ({
+            name: c.name,
+            color: c.color,
+            is_default: false,
+            user_id: user.id
+          }));
+          const { data: inserted } = await supabase.from('categories').insert(defaultCats).select();
+          if (inserted && inserted.length > 0) {
+            setCategories(inserted);
+          }
         }
       } else {
         setCategories(catData);
