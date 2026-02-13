@@ -85,6 +85,7 @@ A smart receipt/invoice management application built with React and TypeScript. 
 - Logic: user.role === 'admin' || user.username === 'zoork22'
 
 ## Recent Changes
+- 2026-02-13: Fixed SEFAZ category filter — categories now derived from actual notes (not user's personal categories), keyword matching uses natOp from XML for better accuracy, removed user category dropdown, filter no longer goes blank
 - 2026-02-13: SEFAZ key lookup — scan photo or type 44-digit chave de acesso to query SEFAZ directly, view note details, and save to database
 - 2026-02-13: Centralized admin verification — isAdmin() helper function in types.ts, all components use centralized check
 - 2026-02-13: Cross-user category filter — ReceiptList and SefazMonitor now have a dropdown to select which user's categories to use for filtering (matches by category name across users)
