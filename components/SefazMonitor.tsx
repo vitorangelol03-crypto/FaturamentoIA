@@ -291,6 +291,9 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categor
   const [dateStart, setDateStart] = useState('');
   const [dateEnd, setDateEnd] = useState('');
   const [selectedCatFilter, setSelectedCatFilter] = useState<string[]>([]);
+  const [receiptCategoryMap, setReceiptCategoryMap] = useState<Map<string, { name: string; color: string }>>(new Map());
+  const [categorySourceUserId, setCategorySourceUserId] = useState<string>('auto');
+  const [allUserCategories, setAllUserCategories] = useState<Map<string, Category[]>>(new Map());
 
   const [showKeyLookup, setShowKeyLookup] = useState(false);
   const [keyInput, setKeyInput] = useState('');
@@ -355,6 +358,23 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categor
       ]);
       setNotes(notesData);
       setLastNSU(nsu);
+
+      const linkedIds = notesData.filter(n => n.receipt_id).map(n => n.receipt_id!);
+      if (linkedIds.length > 0) {
+        const { data: receipts } = await supabase
+          .from('receipts')
+          .select('id, category_name, category_color')
+          .in('id', linkedIds);
+        if (receipts) {
+          const map = new Map<string, { name: string; color: string }>();
+          for (const r of receipts) {
+            if (r.category_name) {
+              map.set(r.id, { name: r.category_name, color: r.category_color || '#6B7280' });
+            }
+          }
+          setReceiptCategoryMap(map);
+        }
+      }
     } catch (err: any) {
       console.error('Erro ao carregar dados SEFAZ:', err);
     } finally {
@@ -365,6 +385,30 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categor
   useEffect(() => {
     loadData();
   }, [activeLocation]);
+
+  useEffect(() => {
+    const loadAllCategories = async () => {
+      const { data } = await supabase.from('categories').select('*');
+      if (data) {
+        const map = new Map<string, Category[]>();
+        for (const cat of data) {
+          const userId = cat.user_id || 'unknown';
+          if (!map.has(userId)) map.set(userId, []);
+          map.get(userId)!.push(cat as Category);
+        }
+        setAllUserCategories(map);
+      }
+    };
+    loadAllCategories();
+  }, []);
+
+  const displayFilterCategories = useMemo(() => {
+    if (categorySourceUserId === 'auto') return availableCategories;
+    const userId = categorySourceUserId === 'mine' ? currentUser.id : categorySourceUserId;
+    const userCats = allUserCategories.get(userId);
+    if (userCats) return userCats.map(c => ({ name: c.name, color: c.color })).sort((a, b) => a.name.localeCompare(b.name));
+    return availableCategories;
+  }, [categorySourceUserId, availableCategories, allUserCategories, currentUser.id]);
 
   const handleKeyLookupFromImage = async (file: File) => {
     setKeyLookupLoading(true);
@@ -644,16 +688,16 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categor
       }
       return true;
     });
-  }, [notes, searchQuery, periodFilter, dateStart, dateEnd, linkFilter, selectedCatFilter]);
+  }, [notes, searchQuery, periodFilter, dateStart, dateEnd, linkFilter, selectedCatFilter, receiptCategoryMap]);
 
   const totalFiltered = useMemo(() => {
     return filteredNotes.reduce((sum, n) => sum + (n.valor_total || 0), 0);
   }, [filteredNotes]);
 
   const getCategoryForNote = (note: SefazNote): { name: string; color: string } | null => {
-    if (note.category_id) {
-      const fromUser = categories.find(c => c.id === note.category_id);
-      if (fromUser) return { name: fromUser.name, color: fromUser.color };
+    if (note.receipt_id) {
+      const receiptCat = receiptCategoryMap.get(note.receipt_id);
+      if (receiptCat) return receiptCat;
     }
     return categorizeBySuplierName(note.emitente_nome || '', note.xml_completo);
   };
@@ -669,7 +713,7 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categor
       }
     }
     return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
-  }, [notes, categories]);
+  }, [notes, categories, receiptCategoryMap]);
 
   const categorySummary = useMemo(() => {
     const map = new Map<string, { name: string; color: string; total: number; count: number }>();
@@ -920,7 +964,20 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categor
 
       {/* Filtro de Categorias */}
       <div>
-        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Categorias</p>
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Categorias</p>
+          <select
+            value={categorySourceUserId}
+            onChange={(e) => { setCategorySourceUserId(e.target.value); setSelectedCatFilter([]); }}
+            className="text-[10px] bg-white border border-gray-200 rounded-md px-2 py-1 text-gray-600 focus:outline-none focus:border-brand-400"
+          >
+            <option value="auto">Categorias das notas</option>
+            <option value="mine">Minhas categorias</option>
+            {users.filter(u => u.id !== currentUser.id).map(u => (
+              <option key={u.id} value={u.id}>{u.full_name}</option>
+            ))}
+          </select>
+        </div>
         <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
           <button
             onClick={() => setSelectedCatFilter([])}
@@ -931,7 +988,7 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categor
           >
             Todas
           </button>
-          {availableCategories.map(cat => (
+          {displayFilterCategories.map(cat => (
             <button
               key={cat.name}
               onClick={() => setSelectedCatFilter(prev => prev.includes(cat.name) ? prev.filter(c => c !== cat.name) : [...prev, cat.name])}
