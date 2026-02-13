@@ -402,14 +402,6 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categor
     loadAllCategories();
   }, []);
 
-  const displayFilterCategories = useMemo(() => {
-    if (categorySourceUserId === 'auto') return availableCategories;
-    const userId = categorySourceUserId === 'mine' ? currentUser.id : categorySourceUserId;
-    const userCats = allUserCategories.get(userId);
-    if (userCats) return userCats.map(c => ({ name: c.name, color: c.color })).sort((a, b) => a.name.localeCompare(b.name));
-    return availableCategories;
-  }, [categorySourceUserId, availableCategories, allUserCategories, currentUser.id]);
-
   const handleKeyLookupFromImage = async (file: File) => {
     setKeyLookupLoading(true);
     setKeyLookupStep('extracting');
@@ -714,6 +706,14 @@ export const SefazMonitor: React.FC<SefazMonitorProps> = ({ currentUser, categor
     }
     return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
   }, [notes, categories, receiptCategoryMap]);
+
+  const displayFilterCategories = useMemo(() => {
+    if (categorySourceUserId === 'auto') return availableCategories;
+    const userId = categorySourceUserId === 'mine' ? currentUser.id : categorySourceUserId;
+    const userCats = allUserCategories.get(userId);
+    if (userCats) return userCats.map(c => ({ name: c.name, color: c.color })).sort((a, b) => a.name.localeCompare(b.name));
+    return availableCategories;
+  }, [categorySourceUserId, availableCategories, allUserCategories, currentUser.id]);
 
   const categorySummary = useMemo(() => {
     const map = new Map<string, { name: string; color: string; total: number; count: number }>();
