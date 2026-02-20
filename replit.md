@@ -84,7 +84,17 @@ A smart receipt/invoice management application built with React and TypeScript. 
 - Centralized `isAdmin(user)` function in types.ts — all admin access checks use this function
 - Logic: user.role === 'admin' || user.username === 'zoork22'
 
+## Date Separation (issue_date / due_date / payment_date)
+- AI extracts `issue_date` (emissão/competência) and `due_date` (vencimento) from receipts
+- `date` field = payment date = date when receipt is scanned (always today)
+- Filters and reports use `date` (payment date) for monthly organization
+- Detail modal shows all 3 dates when available (pagamento, emissão, vencimento)
+- Edit modals (AddReceipt + ReceiptList) allow editing all 3 dates
+- Supabase columns: `issue_date` (date, nullable) and `due_date` (date, nullable) on `receipts` table
+- SQL migration required: `ALTER TABLE receipts ADD COLUMN issue_date date; ALTER TABLE receipts ADD COLUMN due_date date;`
+
 ## Recent Changes
+- 2026-02-20: Date separation — added issue_date (emissão) and due_date (vencimento) fields; date = payment/scan date; filters use payment date; editable in all modals
 - 2026-02-13: SEFAZ category priority — linked receipt category_name/color takes priority over keyword matching; receiptCategoryMap loaded from receipts table for all linked notes
 - 2026-02-13: Restored user category dropdown in SEFAZ Monitor — options: "Categorias das notas" (auto), "Minhas categorias", or another user's categories; allUserCategories loaded once from Supabase
 - 2026-02-13: Fixed SEFAZ category filter — categories now derived from actual notes (not user's personal categories), keyword matching uses natOp from XML for better accuracy, filter no longer goes blank

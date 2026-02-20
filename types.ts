@@ -32,6 +32,8 @@ export interface Receipt {
   id: string;
   establishment: string;
   date: string;
+  issue_date?: string;
+  due_date?: string;
   total_amount: number;
   category_id: string;
   receipt_number?: string;

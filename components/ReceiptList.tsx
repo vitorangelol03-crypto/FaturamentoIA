@@ -221,14 +221,30 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
                     <div className="p-6 space-y-6">
                         <div className="grid grid-cols-2 gap-4">
                             <div className="bg-gray-50 p-3 rounded-xl border border-gray-100">
-                                <div className="text-gray-400 text-[10px] uppercase font-bold mb-1">Data de Compra</div>
-                                <div className="font-medium text-gray-900">{new Date(viewingReceipt.date).toLocaleDateString('pt-BR')}</div>
+                                <div className="text-gray-400 text-[10px] uppercase font-bold mb-1">Data de Pagamento</div>
+                                <div className="font-medium text-gray-900">{new Date(viewingReceipt.date + 'T12:00:00').toLocaleDateString('pt-BR')}</div>
                             </div>
                             <div className="bg-gray-50 p-3 rounded-xl border border-gray-100">
                                 <div className="text-gray-400 text-[10px] uppercase font-bold mb-1">Valor Total</div>
                                 <div className="font-bold text-xl text-brand-600">R$ {Number(viewingReceipt.total_amount).toFixed(2)}</div>
                             </div>
                         </div>
+                        {(viewingReceipt.issue_date || viewingReceipt.due_date) && (
+                          <div className="grid grid-cols-2 gap-4">
+                            {viewingReceipt.issue_date && viewingReceipt.issue_date.length >= 10 && (
+                              <div className="bg-amber-50 p-3 rounded-xl border border-amber-100">
+                                <div className="text-amber-500 text-[10px] uppercase font-bold mb-1">Data de Emissão</div>
+                                <div className="font-medium text-gray-900">{(() => { try { return new Date(viewingReceipt.issue_date + 'T12:00:00').toLocaleDateString('pt-BR'); } catch { return viewingReceipt.issue_date; } })()}</div>
+                              </div>
+                            )}
+                            {viewingReceipt.due_date && viewingReceipt.due_date.length >= 10 && (
+                              <div className="bg-orange-50 p-3 rounded-xl border border-orange-100">
+                                <div className="text-orange-500 text-[10px] uppercase font-bold mb-1">Data de Vencimento</div>
+                                <div className="font-medium text-gray-900">{(() => { try { return new Date(viewingReceipt.due_date + 'T12:00:00').toLocaleDateString('pt-BR'); } catch { return viewingReceipt.due_date; } })()}</div>
+                              </div>
+                            )}
+                          </div>
+                        )}
 
                         {/* AUDIT SECTION */}
                         <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-4">
@@ -338,7 +354,7 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-xs font-bold text-gray-400 uppercase mb-1.5">Data</label>
+                            <label className="block text-xs font-bold text-gray-400 uppercase mb-1.5">Pagamento</label>
                             <input
                                 type="date"
                                 value={editingReceipt.date}
@@ -354,6 +370,26 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
                                 value={editingReceipt.total_amount}
                                 onChange={(e) => setEditingReceipt({...editingReceipt, total_amount: parseFloat(e.target.value) || 0})}
                                 className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm font-bold text-brand-600 focus:ring-2 ring-brand-500 outline-none"
+                            />
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-xs font-bold text-gray-400 uppercase mb-1.5">Emissão</label>
+                            <input
+                                type="date"
+                                value={editingReceipt.issue_date || ''}
+                                onChange={(e) => setEditingReceipt({...editingReceipt, issue_date: e.target.value || undefined})}
+                                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:ring-2 ring-brand-500 outline-none"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-gray-400 uppercase mb-1.5">Vencimento</label>
+                            <input
+                                type="date"
+                                value={editingReceipt.due_date || ''}
+                                onChange={(e) => setEditingReceipt({...editingReceipt, due_date: e.target.value || undefined})}
+                                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:ring-2 ring-brand-500 outline-none"
                             />
                         </div>
                     </div>
@@ -426,6 +462,8 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
                                 const { error } = await supabase.from('receipts').update({
                                     establishment: editingReceipt.establishment,
                                     date: editingReceipt.date,
+                                    issue_date: editingReceipt.issue_date || null,
+                                    due_date: editingReceipt.due_date || null,
                                     total_amount: editingReceipt.total_amount,
                                     category_id: editingReceipt.category_id,
                                     category_name: editCat?.name || null,

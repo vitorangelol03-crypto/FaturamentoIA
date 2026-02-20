@@ -28,9 +28,11 @@ interface QueueItem {
   establishment?: string;
   total_amount?: number;
   date?: string;
+  issue_date?: string;
+  due_date?: string;
   category_id?: string;
   location?: string;
-  dbId?: string; // ID salvo no Supabase
+  dbId?: string;
   errorMsg?: string;
   imagePreview?: string;
   extractedCNPJ?: string;
@@ -368,11 +370,17 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, cur
           c.name.toLowerCase() === rawData.suggested_category?.toLowerCase()
       ) || categories.find(c => c.is_default) || categories[0] || { id: '', name: 'Sem categoria', color: '#6B7280' };
 
+      const paymentDate = new Date().toISOString().split('T')[0];
+      const issueDate = rawData.issue_date || rawData.date || null;
+      const dueDate = rawData.due_date || null;
+
       updateItem(nextItem.id, { 
           status: 'saving', 
           establishment: rawData.establishment,
           total_amount: rawData.total_amount,
-          date: rawData.date,
+          date: paymentDate,
+          issue_date: issueDate || undefined,
+          due_date: dueDate || undefined,
           category_id: matchedCategory.id,
           location: determinedLocation,
           extractedCNPJ: extractedCNPJ
@@ -380,7 +388,9 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, cur
 
       const { data: insertedData, error } = await supabase.from('receipts').insert({
         establishment: rawData.establishment || 'Desconhecido',
-        date: rawData.date || new Date().toISOString(),
+        date: paymentDate,
+        issue_date: issueDate,
+        due_date: dueDate,
         total_amount: rawData.total_amount || 0,
         cnpj: extractedCNPJ,
         receipt_number: rawData.receipt_number,
@@ -454,6 +464,8 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, cur
           const { error } = await supabase.from('receipts').update({
               establishment: editingItem.establishment,
               date: editingItem.date,
+              issue_date: editingItem.issue_date || null,
+              due_date: editingItem.due_date || null,
               total_amount: editingItem.total_amount,
               category_id: editingItem.category_id,
               category_name: selectedCat?.name || null,
@@ -550,7 +562,7 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, cur
 
                       <div className="flex gap-3">
                          <div className="flex-1">
-                            <label className="block text-xs font-medium text-gray-500 mb-1">Data</label>
+                            <label className="block text-xs font-medium text-gray-500 mb-1">Pagamento</label>
                             <input 
                                 type="date" 
                                 value={editingItem.date || ''} 
@@ -568,6 +580,26 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, cur
                                 className="w-full border-b border-gray-300 focus:border-brand-500 outline-none py-1 font-bold text-brand-600"
                             />
                          </div>
+                      </div>
+                      <div className="flex gap-3">
+                        <div className="flex-1">
+                          <label className="block text-xs font-medium text-gray-500 mb-1">Emissão</label>
+                          <input 
+                              type="date" 
+                              value={editingItem.issue_date || ''} 
+                              onChange={(e) => setEditingItem({...editingItem, issue_date: e.target.value || undefined})}
+                              className="w-full border-b border-gray-300 focus:border-brand-500 outline-none py-1 text-sm"
+                          />
+                        </div>
+                        <div className="flex-1">
+                          <label className="block text-xs font-medium text-gray-500 mb-1">Vencimento</label>
+                          <input 
+                              type="date" 
+                              value={editingItem.due_date || ''} 
+                              onChange={(e) => setEditingItem({...editingItem, due_date: e.target.value || undefined})}
+                              className="w-full border-b border-gray-300 focus:border-brand-500 outline-none py-1 text-sm"
+                          />
+                        </div>
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-gray-500 mb-2">Categoria</label>

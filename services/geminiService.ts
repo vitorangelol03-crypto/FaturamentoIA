@@ -2,6 +2,8 @@ export interface ExtractionResult {
   readable: boolean;
   establishment?: string;
   date?: string;
+  issue_date?: string;
+  due_date?: string;
   total_amount?: number;
   cnpj?: string;
   receipt_number?: string;

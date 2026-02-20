@@ -49,18 +49,20 @@ Se a nota tiver itens de categorias diferentes, escolha a categoria do item de M
 
 REGRAS DE EXTRAÇÃO:
 1. ESTABLISHMENT: Nome comercial/fantasia do estabelecimento (não a razão social completa, a menos que seja o único disponível)
-2. DATE: Data da emissão no formato YYYY-MM-DD
-3. TOTAL_AMOUNT: Valor TOTAL da nota (campo "Valor total" ou "TOTAL R$"), apenas o número
-4. CNPJ: CNPJ do EMITENTE (vendedor), apenas números sem pontuação (14 dígitos)
-5. ACCESS_KEY: Chave de acesso da NF-e com EXATAMENTE 44 dígitos numéricos. Geralmente aparece:
+2. DATE: Data da emissão no formato YYYY-MM-DD (para cupons fiscais simples sem vencimento, esta é a data principal)
+3. ISSUE_DATE: Data de EMISSÃO / COMPETÊNCIA / REFERÊNCIA do documento no formato YYYY-MM-DD. Para contas de serviço (luz, água, internet, telefone), é a data de emissão ou o mês de referência (usar primeiro dia do mês). Para cupons fiscais de compra, é a mesma data da compra. Se não encontrar, retorne string vazia.
+4. DUE_DATE: Data de VENCIMENTO do documento no formato YYYY-MM-DD. Para contas de serviço (luz, água, internet, telefone), boletos e faturas que têm prazo de pagamento. Para cupons fiscais de compra normal (sem vencimento), retorne string vazia.
+5. TOTAL_AMOUNT: Valor TOTAL da nota (campo "Valor total" ou "TOTAL R$"), apenas o número
+6. CNPJ: CNPJ do EMITENTE (vendedor), apenas números sem pontuação (14 dígitos)
+7. ACCESS_KEY: Chave de acesso da NF-e com EXATAMENTE 44 dígitos numéricos. Geralmente aparece:
    - No rodapé da nota
    - Próximo ao QR Code
    - Após "Chave de Acesso" ou "Consulte pela Chave de Acesso"
    - Pode estar separada em grupos de 4 dígitos
    IMPORTANTE: Junte todos os dígitos em uma string contínua de 44 números. Se não encontrar exatamente 44 dígitos, retorne string vazia.
-6. ITEMS: Lista de produtos/serviços com nome, quantidade, preço unitário e preço total
-7. PAYMENT_METHOD: Forma de pagamento (Dinheiro, Cartão de Crédito, Cartão de Débito, PIX, etc.)
-8. RECEIPT_NUMBER: Número da nota fiscal
+8. ITEMS: Lista de produtos/serviços com nome, quantidade, preço unitário e preço total
+9. PAYMENT_METHOD: Forma de pagamento (Dinheiro, Cartão de Crédito, Cartão de Débito, PIX, etc.)
+10. RECEIPT_NUMBER: Número da nota fiscal
 
 VALIDAÇÃO DA IMAGEM:
 - Se a imagem NÃO for uma nota fiscal, cupom fiscal ou recibo, retorne readable = false
@@ -102,7 +104,9 @@ export default async function handler(req, res) {
       properties: {
         readable: { type: Type.BOOLEAN, description: "true se a imagem é uma nota fiscal legível, false se não for nota fiscal ou estiver ilegível" },
         establishment: { type: Type.STRING, description: "Nome do estabelecimento" },
-        date: { type: Type.STRING, description: "Data no formato YYYY-MM-DD" },
+        date: { type: Type.STRING, description: "Data da compra/emissão no formato YYYY-MM-DD" },
+        issue_date: { type: Type.STRING, description: "Data de emissão/competência no formato YYYY-MM-DD, ou string vazia se não aplicável" },
+        due_date: { type: Type.STRING, description: "Data de vencimento no formato YYYY-MM-DD, ou string vazia se não aplicável" },
         total_amount: { type: Type.NUMBER, description: "Valor total numérico" },
         cnpj: { type: Type.STRING, description: "CNPJ do emitente, apenas 14 dígitos numéricos" },
         receipt_number: { type: Type.STRING, description: "Número da nota fiscal" },
