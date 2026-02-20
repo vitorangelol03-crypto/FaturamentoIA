@@ -36,6 +36,7 @@ interface QueueItem {
   errorMsg?: string;
   imagePreview?: string;
   extractedCNPJ?: string;
+  observations?: string;
 }
 
 export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, currentUser, pushOverlay, closeOverlay, removeOverlayFromStack, registerOverlayClose, unregisterOverlayClose }) => {
@@ -403,6 +404,7 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, cur
         location: determinedLocation,
         user_id: currentUser.id,
         access_key: rawData.access_key || null,
+        observations: null,
       }).select().single();
 
       if (error) throw error;
@@ -470,7 +472,8 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, cur
               category_id: editingItem.category_id,
               category_name: selectedCat?.name || null,
               category_color: selectedCat?.color || null,
-              location: editingItem.location
+              location: editingItem.location,
+              observations: editingItem.observations || null
           }).eq('id', editingItem.dbId);
 
           if (error) throw error;
@@ -622,6 +625,16 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, cur
                                 </button>
                              ))}
                         </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Observações</label>
+                        <textarea
+                            value={editingItem.observations || ''}
+                            onChange={(e) => setEditingItem({...editingItem, observations: e.target.value})}
+                            placeholder="Adicionar observações sobre esta nota..."
+                            rows={2}
+                            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-brand-500 outline-none resize-none"
+                        />
                       </div>
                   </div>
                   <div className="p-4 bg-gray-50 border-t border-gray-100 flex gap-2">
