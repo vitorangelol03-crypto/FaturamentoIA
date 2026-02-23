@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Category, Receipt } from '../types';
-import { Trash2, Plus, Download, BarChart2, AlertTriangle, Eraser, X, Calendar, Loader2, Check, Palette } from 'lucide-react';
+import { Category, Receipt, User } from '../types';
+import { Trash2, Plus, Download, BarChart2, AlertTriangle, Eraser, X, Calendar, Loader2, Check, Palette, Search, CheckSquare, Square } from 'lucide-react';
 import { supabase } from '../services/supabaseClient';
 import { clsx } from 'clsx';
 
@@ -18,14 +18,93 @@ interface SettingsProps {
   refreshCategories: () => void;
   userId: string;
   isAdmin?: boolean;
+  users?: User[];
 }
 
-export const Settings: React.FC<SettingsProps> = ({ categories, receipts, refreshCategories, userId, isAdmin }) => {
+export const Settings: React.FC<SettingsProps> = ({ categories, receipts, refreshCategories, userId, isAdmin, users }) => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [activeDeleteAction, setActiveDeleteAction] = useState<string | null>(null);
   const [catModal, setCatModal] = useState<{ mode: 'add' | 'edit'; id?: string; name: string; color: string } | null>(null);
   const [isSavingCat, setIsSavingCat] = useState(false);
   const [deletingCatId, setDeletingCatId] = useState<string | null>(null);
+
+  const [showAdvancedDelete, setShowAdvancedDelete] = useState(false);
+  const [advFilterUser, setAdvFilterUser] = useState('');
+  const [advFilterDate, setAdvFilterDate] = useState('');
+  const [advResults, setAdvResults] = useState<any[]>([]);
+  const [advLoading, setAdvLoading] = useState(false);
+  const [advSelected, setAdvSelected] = useState<Set<string>>(new Set());
+  const [advDeleting, setAdvDeleting] = useState(false);
+  const [advSearched, setAdvSearched] = useState(false);
+
+  const advSearch = async () => {
+    if (!advFilterUser && !advFilterDate) return;
+    setAdvLoading(true);
+    setAdvSearched(true);
+    setAdvSelected(new Set());
+    try {
+      let query = supabase
+        .from('receipts')
+        .select('id,establishment,total_amount,date,created_at,user_id,category_name,category_color')
+        .order('created_at', { ascending: false })
+        .limit(200);
+      if (advFilterUser) query = query.eq('user_id', advFilterUser);
+      if (advFilterDate) query = query.eq('date', advFilterDate);
+      const { data, error } = await query;
+      if (error) throw error;
+      setAdvResults(data || []);
+    } catch (err: any) {
+      alert('Erro ao buscar: ' + (err.message || 'Erro'));
+      setAdvResults([]);
+    } finally {
+      setAdvLoading(false);
+    }
+  };
+
+  const advToggle = (id: string) => {
+    setAdvSelected(prev => {
+      const n = new Set(prev);
+      if (n.has(id)) n.delete(id); else n.add(id);
+      return n;
+    });
+  };
+
+  const advToggleAll = () => {
+    if (advSelected.size === advResults.length) {
+      setAdvSelected(new Set());
+    } else {
+      setAdvSelected(new Set(advResults.map(r => r.id)));
+    }
+  };
+
+  const advDeleteSelected = async () => {
+    if (advSelected.size === 0) return;
+    if (!confirm(`Excluir permanentemente ${advSelected.size} nota(s)? Esta ação não pode ser desfeita.`)) return;
+    setAdvDeleting(true);
+    try {
+      const ids = Array.from(advSelected);
+      await supabase.from('sefaz_notes').update({ receipt_id: null }).in('receipt_id', ids);
+      const BATCH = 50;
+      for (let i = 0; i < ids.length; i += BATCH) {
+        const batch = ids.slice(i, i + BATCH);
+        const { error } = await supabase.from('receipts').delete().in('id', batch);
+        if (error) throw error;
+      }
+      alert(`${advSelected.size} nota(s) excluída(s) com sucesso!`);
+      setAdvResults(prev => prev.filter(r => !advSelected.has(r.id)));
+      setAdvSelected(new Set());
+      refreshCategories();
+    } catch (err: any) {
+      alert('Erro ao excluir: ' + (err.message || 'Erro'));
+    } finally {
+      setAdvDeleting(false);
+    }
+  };
+
+  const getUserName = (uid: string) => {
+    const u = (users || []).find(u => u.id === uid);
+    return u ? u.full_name : 'Usuário';
+  };
 
   const openAddModal = () => setCatModal({ mode: 'add', name: '', color: COLOR_PALETTE[Math.floor(Math.random() * COLOR_PALETTE.length)] });
   const openEditModal = (cat: Category) => setCatModal({ mode: 'edit', id: cat.id, name: cat.name, color: cat.color });
@@ -177,11 +256,18 @@ export const Settings: React.FC<SettingsProps> = ({ categories, receipts, refres
                     className="w-full flex items-center justify-center gap-2 border border-red-200 text-red-600 font-medium py-3 rounded-lg hover:bg-red-50 transition-colors"
                 >
                     <Eraser size={18} />
-                    Limpar Notas...
+                    Limpar Notas por Período...
+                </button>
+                <button 
+                    onClick={() => { setShowAdvancedDelete(true); setAdvResults([]); setAdvSearched(false); setAdvFilterUser(''); setAdvFilterDate(''); setAdvSelected(new Set()); }}
+                    className="w-full flex items-center justify-center gap-2 border border-orange-200 text-orange-600 font-medium py-3 rounded-lg hover:bg-orange-50 transition-colors"
+                >
+                    <Search size={18} />
+                    Excluir por Usuário / Data...
                 </button>
                 <p className="text-[10px] text-gray-400 text-center pt-1">
                     <AlertTriangle size={10} className="inline mr-1" />
-                    Atenção: A limpeza de dados remove permanentemente os registros de TODOS os usuários.
+                    Atenção: A exclusão de dados é permanente e não pode ser desfeita.
                 </p>
             </>
         )}
@@ -304,6 +390,133 @@ export const Settings: React.FC<SettingsProps> = ({ categories, receipts, refres
                         </button>
                     </div>
                 </div>
+            </div>
+        </div>
+      )}
+      
+      {showAdvancedDelete && isAdmin && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center sm:p-4 animate-in fade-in">
+            <div className="bg-white w-full max-w-md sm:rounded-2xl rounded-t-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] sm:max-h-[90vh] sm:!mb-0" style={{ marginBottom: 'calc(68px + env(safe-area-inset-bottom, 0px))' }}>
+                <div className="bg-orange-50 p-4 border-b border-orange-100 flex justify-between items-center flex-shrink-0">
+                    <h3 className="font-bold text-orange-700 flex items-center gap-2">
+                        <Search size={20} />
+                        Excluir por Usuário / Data
+                    </h3>
+                    <button onClick={() => setShowAdvancedDelete(false)} className="text-orange-400 hover:text-orange-700">
+                        <X size={24} />
+                    </button>
+                </div>
+
+                <div className="p-4 border-b border-gray-100 space-y-3 flex-shrink-0">
+                    <div>
+                        <label className="text-[10px] font-bold text-gray-400 uppercase mb-1 block">Usuário</label>
+                        <select
+                            value={advFilterUser}
+                            onChange={e => setAdvFilterUser(e.target.value)}
+                            className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm bg-white text-gray-900 focus:ring-2 ring-orange-500 outline-none"
+                        >
+                            <option value="">Todos os usuários</option>
+                            {(users || []).map(u => (
+                                <option key={u.id} value={u.id}>{u.full_name} (@{u.username})</option>
+                            ))}
+                        </select>
+                    </div>
+                    <div>
+                        <label className="text-[10px] font-bold text-gray-400 uppercase mb-1 block">Data de Pagamento</label>
+                        <input
+                            type="date"
+                            value={advFilterDate}
+                            onChange={e => setAdvFilterDate(e.target.value)}
+                            className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm bg-white text-gray-900 focus:ring-2 ring-orange-500 outline-none"
+                        />
+                    </div>
+                    <button
+                        onClick={advSearch}
+                        disabled={advLoading || (!advFilterUser && !advFilterDate)}
+                        className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-2.5 rounded-lg flex items-center justify-center gap-2 disabled:opacity-40 transition-colors"
+                    >
+                        {advLoading ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />}
+                        Buscar Notas
+                    </button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto min-h-0 p-4">
+                    {!advSearched ? (
+                        <div className="text-center py-8 text-gray-400">
+                            <Search size={40} className="mx-auto mb-2 opacity-20" />
+                            <p className="text-sm">Selecione um usuário e/ou data e clique em Buscar.</p>
+                        </div>
+                    ) : advLoading ? (
+                        <div className="flex justify-center py-8">
+                            <Loader2 className="animate-spin text-orange-500" size={32} />
+                        </div>
+                    ) : advResults.length === 0 ? (
+                        <div className="text-center py-8 text-gray-400">
+                            <Check size={40} className="mx-auto mb-2 opacity-20 text-green-400" />
+                            <p className="text-sm">Nenhuma nota encontrada com esses filtros.</p>
+                        </div>
+                    ) : (
+                        <div className="space-y-2">
+                            <div className="flex items-center justify-between mb-3">
+                                <button
+                                    onClick={advToggleAll}
+                                    className="flex items-center gap-2 text-xs font-bold text-orange-600 hover:text-orange-700"
+                                >
+                                    {advSelected.size === advResults.length ? <CheckSquare size={16} /> : <Square size={16} />}
+                                    {advSelected.size === advResults.length ? 'Desmarcar todas' : 'Selecionar todas'}
+                                </button>
+                                <span className="text-[10px] text-gray-400 font-medium">{advResults.length} nota(s) encontrada(s)</span>
+                            </div>
+                            {advResults.map(r => (
+                                <div
+                                    key={r.id}
+                                    onClick={() => advToggle(r.id)}
+                                    className={clsx(
+                                        "flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all",
+                                        advSelected.has(r.id)
+                                            ? "border-red-300 bg-red-50"
+                                            : "border-gray-100 bg-white hover:bg-gray-50"
+                                    )}
+                                >
+                                    <div className="flex-shrink-0">
+                                        {advSelected.has(r.id) ? (
+                                            <CheckSquare size={20} className="text-red-500" />
+                                        ) : (
+                                            <Square size={20} className="text-gray-300" />
+                                        )}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="font-bold text-sm text-gray-900 truncate">{r.establishment}</p>
+                                        <div className="flex items-center gap-2 mt-0.5 text-[10px] text-gray-400">
+                                            <span>{new Date(r.date + 'T12:00:00').toLocaleDateString('pt-BR')}</span>
+                                            <span>•</span>
+                                            <span>{getUserName(r.user_id)}</span>
+                                        </div>
+                                    </div>
+                                    <div className="flex-shrink-0 text-right">
+                                        <p className="font-bold text-sm text-brand-600">R$ {Number(r.total_amount).toFixed(2)}</p>
+                                        {r.category_name && (
+                                            <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded text-[8px] font-bold text-white" style={{ backgroundColor: r.category_color || '#6B7280' }}>{r.category_name}</span>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+
+                {advResults.length > 0 && advSelected.size > 0 && (
+                    <div className="flex-shrink-0 border-t border-gray-100 p-4 bg-white">
+                        <button
+                            onClick={advDeleteSelected}
+                            disabled={advDeleting}
+                            className="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-red-500/20 disabled:opacity-50 transition-colors"
+                        >
+                            {advDeleting ? <Loader2 size={18} className="animate-spin" /> : <Trash2 size={18} />}
+                            Excluir {advSelected.size} nota(s) selecionada(s)
+                        </button>
+                    </div>
+                )}
             </div>
         </div>
       )}

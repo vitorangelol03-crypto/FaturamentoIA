@@ -394,6 +394,7 @@ export default function App() {
                 receipts={receipts}
                 userId={user.id}
                 isAdmin={true}
+                users={users}
             />
         )}
       </Layout>
