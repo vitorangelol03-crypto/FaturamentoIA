@@ -101,6 +101,7 @@ A smart receipt/invoice management application built with React and TypeScript. 
 - Error banner with "Tentar novamente" button when data loading fails
 
 ## Recent Changes
+- 2026-02-23: Advanced delete — admin-only "Excluir por Usuário/Data" modal in Settings: filter by user dropdown + specific date, preview matching receipts, individual/bulk selection, batch delete with sefaz_notes unlinking, existing "Limpar Notas por Período" preserved
 - 2026-02-23: Performance fix — selective column loading (no image_url in list query), on-demand image loading in detail modal, .limit(1000) safety, error banner with retry, resilient Service Worker caching
 - 2026-02-20: Date separation — added issue_date (emissão) and due_date (vencimento) fields; date = payment/scan date; filters use payment date; editable in all modals
 - 2026-02-13: SEFAZ category priority — linked receipt category_name/color takes priority over keyword matching; receiptCategoryMap loaded from receipts table for all linked notes
