@@ -460,7 +460,7 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, cur
       });
 
       if (mode === 'camera') {
-        showCameraToast('success', `${rawData.establishment} — R$ ${rawData.total_amount?.toFixed(2)} salvo!`);
+        showCameraToast('success', `${rawData.establishment} — ${rawData.total_amount?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} salvo!`);
       }
       notificationService.notifyReceiptSaved(rawData.establishment || 'Nota');
 
@@ -850,7 +850,7 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, cur
                         </p>
                         <div className="flex items-center gap-2 text-xs">
                              {item.status === 'success' && (
-                                 <span className="font-bold text-brand-600">R$ {item.total_amount?.toFixed(2)}</span>
+                                 <span className="font-bold text-brand-600">{item.total_amount?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
                              )}
                              <span className="text-gray-400">
                                 {item.status === 'waiting' && 'Na fila...'}

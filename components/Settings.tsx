@@ -494,7 +494,7 @@ export const Settings: React.FC<SettingsProps> = ({ categories, receipts, refres
                                         </div>
                                     </div>
                                     <div className="flex-shrink-0 text-right">
-                                        <p className="font-bold text-sm text-brand-600">R$ {Number(r.total_amount).toFixed(2)}</p>
+                                        <p className="font-bold text-sm text-brand-600">{Number(r.total_amount).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
                                         {r.category_name && (
                                             <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded text-[8px] font-bold text-white" style={{ backgroundColor: r.category_color || '#6B7280' }}>{r.category_name}</span>
                                         )}

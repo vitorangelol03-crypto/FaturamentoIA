@@ -257,7 +257,7 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
                             </div>
                             <div className="bg-gray-50 p-3 rounded-xl border border-gray-100">
                                 <div className="text-gray-400 text-[10px] uppercase font-bold mb-1">Valor Total</div>
-                                <div className="font-bold text-xl text-brand-600">R$ {Number(viewingReceipt.total_amount).toFixed(2)}</div>
+                                <div className="font-bold text-xl text-brand-600">{Number(viewingReceipt.total_amount).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</div>
                             </div>
                         </div>
                         {(viewingReceipt.issue_date || viewingReceipt.due_date) && (
@@ -320,7 +320,7 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
                                     <table className="w-full text-sm text-left">
                                         <tbody className="divide-y divide-gray-100">
                                             {viewingReceipt.items.map((item, idx) => (
-                                                <tr key={idx}><td className="px-3 py-2 text-gray-700 font-medium">{item.name}</td><td className="px-3 py-2 text-right font-bold text-gray-900">{item.totalPrice?.toFixed(2) || '0.00'}</td></tr>
+                                                <tr key={idx}><td className="px-3 py-2 text-gray-700 font-medium">{item.name}</td><td className="px-3 py-2 text-right font-bold text-gray-900">{item.totalPrice != null ? item.totalPrice.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : 'R$ 0,00'}</td></tr>
                                             ))}
                                         </tbody>
                                     </table>
@@ -684,7 +684,7 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
                                 </div>
                                 <div className="p-2.5">
                                     <p className="font-bold text-gray-900 text-[10px] truncate mb-0.5">{receipt.establishment}</p>
-                                    <p className="text-xs text-brand-600 font-bold mb-1.5">R$ {Number(receipt.total_amount).toFixed(2)}</p>
+                                    <p className="text-xs text-brand-600 font-bold mb-1.5">{Number(receipt.total_amount).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
                                     <div className="border-t border-gray-50 pt-1.5 space-y-0.5">
                                         <div className="flex items-center gap-1 text-[8px] text-gray-400 font-medium">
                                             <UserIcon size={8} /> {uploaderName.split(' ')[0]}
@@ -708,7 +708,7 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
                                         <p className="text-[9px] text-gray-400 truncate flex items-center gap-1"><UserIcon size={8}/> {uploaderName} • {new Date(receipt.date).toLocaleDateString('pt-BR')}</p>
                                     </div>
                                 </div>
-                                <p className="font-bold text-xs text-brand-600 ml-2 whitespace-nowrap">R$ {Number(receipt.total_amount).toFixed(2)}</p>
+                                <p className="font-bold text-xs text-brand-600 ml-2 whitespace-nowrap">{Number(receipt.total_amount).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
                             </div>
                         );
                     }
@@ -721,7 +721,7 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
                             <div className="flex-1 min-w-0">
                                 <div className="flex justify-between items-start gap-1">
                                     <h3 className="font-bold text-gray-900 truncate text-[13px] leading-tight">{receipt.establishment}</h3>
-                                    <span className="text-brand-600 font-bold text-[13px] whitespace-nowrap flex-shrink-0">R$ {Number(receipt.total_amount).toFixed(2)}</span>
+                                    <span className="text-brand-600 font-bold text-[13px] whitespace-nowrap flex-shrink-0">{Number(receipt.total_amount).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
                                 </div>
                                 <div className="flex flex-wrap gap-1 mt-1.5">
                                     {(() => { const catName = receipt.category_name || category?.name || 'Outros'; const catColor = receipt.category_color || category?.color || '#6B7280'; return <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold leading-none" style={{ backgroundColor: `${catColor}20`, color: catColor }}>{catName}</span>; })()}

@@ -79,7 +79,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ receipts, categories }) =>
         <div className="bg-white p-2 border border-gray-200 shadow-md rounded-lg text-sm z-50">
           <p className="font-semibold mb-1" style={{color: data.payload.color}}>{data.name}</p>
           <div className="flex items-baseline gap-2">
-            <p className="text-gray-900 font-bold">R$ {Number(data.value).toFixed(2)}</p>
+            <p className="text-gray-900 font-bold">{Number(data.value).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
             <p className="text-xs text-gray-500">({percent}%)</p>
           </div>
         </div>
