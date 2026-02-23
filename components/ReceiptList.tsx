@@ -163,15 +163,41 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
     notificationService.notifyDownload(`Relatório ${label}.pdf`);
   };
 
-  const handleDownloadSingle = (e: React.MouseEvent, receipt: Receipt) => {
+  const handleDownloadSingle = async (e: React.MouseEvent, receipt: Receipt) => {
       e.stopPropagation();
       const catName = categories.find(c => c.id === receipt.category_id)?.name || 'Outros';
-      generateSingleReceiptPDF(receipt, catName);
+      let receiptWithImage = receipt;
+      if (!receipt.image_url) {
+        try {
+          const { data } = await supabase.from('receipts').select('image_url').eq('id', receipt.id).single();
+          if (data?.image_url) receiptWithImage = { ...receipt, image_url: data.image_url };
+        } catch {}
+      }
+      generateSingleReceiptPDF(receiptWithImage, catName);
       notificationService.notifyDownload(`${receipt.establishment}.pdf`);
   };
 
-  const handleCardClick = (receipt: Receipt) => {
+  const [loadingImage, setLoadingImage] = useState(false);
+
+  const handleCardClick = async (receipt: Receipt) => {
       setViewingReceipt(receipt);
+      if (!receipt.image_url) {
+        setLoadingImage(true);
+        try {
+          const { data } = await supabase
+            .from('receipts')
+            .select('image_url')
+            .eq('id', receipt.id)
+            .single();
+          if (data?.image_url) {
+            setViewingReceipt(prev => prev ? { ...prev, image_url: data.image_url } : prev);
+          }
+        } catch (err) {
+          console.error('Erro ao carregar imagem:', err);
+        } finally {
+          setLoadingImage(false);
+        }
+      }
   };
 
   const getCat = (id: string) => categories.find(c => c.id === id);
@@ -202,7 +228,12 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
                         setZoomedImage(viewingReceipt.image_url);
                       }
                     }}>
-                         {viewingReceipt.image_url ? (
+                         {loadingImage ? (
+                            <div className="flex flex-col items-center text-gray-400">
+                              <Loader2 size={32} className="animate-spin mb-2" />
+                              <span className="text-xs">Carregando imagem...</span>
+                            </div>
+                         ) : viewingReceipt.image_url ? (
                             viewingReceipt.image_url.startsWith('data:application/pdf') ? (
                               <div className="w-full h-full flex flex-col items-center justify-center bg-red-50 text-red-400">
                                 <FileText size={48} className="mb-2" />
@@ -648,13 +679,7 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
                         return (
                             <div key={receipt.id} onClick={() => handleCardClick(receipt)} className="bg-white rounded-xl shadow-sm overflow-hidden border border-gray-100 flex flex-col relative group cursor-pointer active:scale-95 transition-all">
                                 <div className="h-24 bg-gray-100 relative">
-                                    {receipt.image_url ? (
-                                      receipt.image_url.startsWith('data:application/pdf') ? (
-                                        <div className="w-full h-full flex items-center justify-center text-gray-300"><FileText size={24} /></div>
-                                      ) : (
-                                        <img src={receipt.image_url} className="w-full h-full object-cover" alt="" />
-                                      )
-                                    ) : <div className="w-full h-full flex items-center justify-center text-gray-300"><ImageIcon /></div>}
+                                    <div className="w-full h-full flex items-center justify-center text-gray-300"><ImageIcon /></div>
                                     {(() => { const catName = receipt.category_name || category?.name || 'Outros'; const catColor = receipt.category_color || category?.color || '#6B7280'; return <div className="absolute top-2 right-2 px-1.5 py-0.5 rounded text-[8px] font-bold text-white shadow-sm z-10" style={{backgroundColor: catColor}}>{catName}</div>; })()}
                                 </div>
                                 <div className="p-2.5">
@@ -691,13 +716,7 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
                     return (
                         <div key={receipt.id} onClick={() => handleCardClick(receipt)} className="bg-white rounded-xl shadow-sm p-3 flex gap-3 border border-gray-100 cursor-pointer active:bg-gray-50 transition-colors overflow-hidden">
                             <div className="w-14 h-14 rounded-lg bg-gray-100 flex-shrink-0 overflow-hidden relative border border-gray-100">
-                                {receipt.image_url ? (
-                                  receipt.image_url.startsWith('data:application/pdf') ? (
-                                    <div className="w-full h-full flex items-center justify-center text-gray-300"><FileText size={20} /></div>
-                                  ) : (
-                                    <img src={receipt.image_url} className="w-full h-full object-cover" alt="" />
-                                  )
-                                ) : <div className="w-full h-full flex items-center justify-center text-gray-300"><ImageIcon size={20} /></div>}
+                                <div className="w-full h-full flex items-center justify-center text-gray-300"><ImageIcon size={20} /></div>
                             </div>
                             <div className="flex-1 min-w-0">
                                 <div className="flex justify-between items-start gap-1">

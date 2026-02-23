@@ -93,7 +93,15 @@ A smart receipt/invoice management application built with React and TypeScript. 
 - Supabase columns: `issue_date` (date, nullable) and `due_date` (date, nullable) on `receipts` table
 - SQL migration required: `ALTER TABLE receipts ADD COLUMN issue_date date; ALTER TABLE receipts ADD COLUMN due_date date;`
 
+## Performance Optimizations
+- Receipts query uses selective columns (excludes image_url base64 data) to prevent 500 errors on large datasets
+- image_url loaded on-demand when opening receipt detail modal
+- Query limit of 1000 receipts as safety net
+- Service Worker uses individual try/catch for cache operations (no more addAll failures)
+- Error banner with "Tentar novamente" button when data loading fails
+
 ## Recent Changes
+- 2026-02-23: Performance fix — selective column loading (no image_url in list query), on-demand image loading in detail modal, .limit(1000) safety, error banner with retry, resilient Service Worker caching
 - 2026-02-20: Date separation — added issue_date (emissão) and due_date (vencimento) fields; date = payment/scan date; filters use payment date; editable in all modals
 - 2026-02-13: SEFAZ category priority — linked receipt category_name/color takes priority over keyword matching; receiptCategoryMap loaded from receipts table for all linked notes
 - 2026-02-13: Restored user category dropdown in SEFAZ Monitor — options: "Categorias das notas" (auto), "Minhas categorias", or another user's categories; allUserCategories loaded once from Supabase

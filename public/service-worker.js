@@ -1,30 +1,31 @@
-const CACHE_NAME = 'smartreceipts-v1.0.0';
-const STATIC_CACHE = 'static-v1';
+const CACHE_NAME = 'smartreceipts-v1.0.1';
+const STATIC_CACHE = 'static-v1.1';
 const DYNAMIC_CACHE = 'dynamic-v1';
 
-// Arquivos para cache durante a instalação
 const STATIC_FILES = [
   '/',
   '/index.html',
-  '/icons/icon-192x192.png',
-  '/icons/icon-512x512.png',
   '/offline.html'
 ];
 
-// Instalação do Service Worker
 self.addEventListener('install', (event) => {
   console.log('[Service Worker] Installing...');
   event.waitUntil(
     caches.open(STATIC_CACHE)
-      .then(cache => {
+      .then(async (cache) => {
         console.log('[Service Worker] Caching static files');
-        return cache.addAll(STATIC_FILES);
+        for (const file of STATIC_FILES) {
+          try {
+            await cache.add(file);
+          } catch (err) {
+            console.warn('[Service Worker] Failed to cache:', file, err.message);
+          }
+        }
       })
       .then(() => self.skipWaiting())
   );
 });
 
-// Ativação do Service Worker
 self.addEventListener('activate', (event) => {
   console.log('[Service Worker] Activating...');
   event.waitUntil(
@@ -41,9 +42,7 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Interceptar requisições (estratégia: Network First, depois Cache)
 self.addEventListener('fetch', (event) => {
-  // Ignorar requisições do Supabase e Gemini API e API local
   if (event.request.url.includes('supabase.co') || 
       event.request.url.includes('googleapis.com') ||
       event.request.url.includes('generativelanguage.googleapis.com') ||
@@ -51,7 +50,6 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Ignorar chrome-extension schemes
   if (event.request.url.startsWith('chrome-extension')) {
       return;
   }
@@ -59,26 +57,29 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(
     fetch(event.request)
       .then(response => {
-        // Se a requisição foi bem-sucedida, salvar no cache dinâmico
         if (response.status === 200) {
           const responseClone = response.clone();
           caches.open(DYNAMIC_CACHE).then(cache => {
-            cache.put(event.request, responseClone);
+            try {
+              cache.put(event.request, responseClone);
+            } catch (e) {
+              console.warn('[Service Worker] Cache put failed:', e.message);
+            }
           });
         }
         return response;
       })
       .catch(() => {
-        // Se falhar (offline), tentar buscar do cache
         return caches.match(event.request)
           .then(cachedResponse => {
             if (cachedResponse) {
               return cachedResponse;
             }
-            // Se não houver cache e for navegação (HTML), retornar página offline
-            if (event.request.headers.get('accept').includes('text/html')) {
-                return caches.match('/offline.html');
-            }
+            try {
+              if (event.request.headers.get('accept')?.includes('text/html')) {
+                  return caches.match('/offline.html');
+              }
+            } catch (e) {}
             return caches.match('/index.html');
           });
       })

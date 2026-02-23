@@ -11,7 +11,7 @@ import { supabase } from './services/supabaseClient';
 import { authService } from './services/authService';
 import { Receipt, Category, User, isAdmin } from './types';
 import { DEFAULT_CATEGORIES } from './constants';
-import { LogOut, Bell } from 'lucide-react';
+import { LogOut, Bell, AlertTriangle, RefreshCw } from 'lucide-react';
 import { notificationService } from './services/notificationService';
 
 type HistoryEntry = { type: 'tab'; tab: string } | { type: 'overlay'; name: string };
@@ -24,6 +24,7 @@ export default function App() {
   const [categories, setCategories] = useState<Category[]>(DEFAULT_CATEGORIES);
   const [users, setUsers] = useState<User[]>([]);
   const [loadingData, setLoadingData] = useState(false);
+  const [dataError, setDataError] = useState<string | null>(null);
   const [showNotifBanner, setShowNotifBanner] = useState(false);
   const historyStackRef = useRef<HistoryEntry[]>([{ type: 'tab', tab: 'dashboard' }]);
   const overlayCloseHandlersRef = useRef<Map<string, () => void>>(new Map());
@@ -138,11 +139,14 @@ export default function App() {
       localStorage.setItem('smartreceipts_location', loc);
   };
 
+  const RECEIPT_LIST_COLUMNS = 'id,establishment,date,issue_date,due_date,total_amount,category_id,receipt_number,cnpj,location,payment_method,items,user_id,created_at,source,access_key,observations,category_name,category_color';
+
   const fetchData = async () => {
     if (!user) return;
 
     try {
       setLoadingData(true);
+      setDataError(null);
       const userIsAdmin = isAdmin(user);
       
       const { data: userData } = await supabase.from('users').select('id, full_name, username');
@@ -192,8 +196,9 @@ export default function App() {
 
       let query = supabase
         .from('receipts')
-        .select('*')
-        .order('created_at', { ascending: false });
+        .select(RECEIPT_LIST_COLUMNS)
+        .order('created_at', { ascending: false })
+        .limit(1000);
       
       if (!userIsAdmin) {
           query = query.eq('user_id', user.id);
@@ -203,7 +208,8 @@ export default function App() {
           }
       }
 
-      const { data: recData } = await query;
+      const { data: recData, error: recError } = await query;
+      if (recError) throw new Error(`Erro ao carregar notas: ${recError.message}`);
       const receiptsArr = (recData || []) as any[];
 
       const needsBackfill = receiptsArr.filter(
@@ -266,8 +272,9 @@ export default function App() {
         setLinkedReceiptIds(new Set(linkedData.map((n: any) => n.receipt_id)));
       }
 
-    } catch (e) {
+    } catch (e: any) {
       console.error("Error fetching data", e);
+      setDataError(e?.message || 'Erro ao carregar dados. Tente novamente.');
     } finally {
       setLoadingData(false);
     }
@@ -320,6 +327,26 @@ export default function App() {
               <button onClick={handleNotifDismiss} className="px-3 py-1.5 rounded-lg text-[11px] font-bold text-gray-500 bg-white border border-gray-200">Agora não</button>
               <button onClick={handleNotifAllow} className="px-3 py-1.5 rounded-lg text-[11px] font-bold text-white bg-brand-600 shadow-sm">Permitir</button>
             </div>
+          </div>
+        )}
+
+        {dataError && (
+          <div className="mx-4 mt-3 bg-red-50 border border-red-200 rounded-xl p-4 flex items-center gap-3 animate-in fade-in">
+            <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+              <AlertTriangle size={20} className="text-red-500" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold text-red-800">Erro ao carregar dados</p>
+              <p className="text-[11px] text-red-600 mt-0.5">{dataError}</p>
+            </div>
+            <button 
+              onClick={fetchData} 
+              disabled={loadingData}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-bold text-white bg-red-500 hover:bg-red-600 shadow-sm flex-shrink-0 disabled:opacity-50"
+            >
+              <RefreshCw size={12} className={loadingData ? 'animate-spin' : ''} />
+              Tentar novamente
+            </button>
           </div>
         )}
 
