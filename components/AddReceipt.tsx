@@ -57,6 +57,9 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, cur
   const [editingItem, setEditingItem] = useState<QueueItem | null>(null);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
 
+  // Zoom State
+  const [zoomedImage, setZoomedImage] = useState<string | null>(null);
+
   // Bulk Location State
   const [changingBulkLocation, setChangingBulkLocation] = useState(false);
 
@@ -238,6 +241,16 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, cur
       setQueue(prev => [...prev, ...newItems]);
       setMode('queue');
       e.target.value = '';
+
+      newItems.forEach(item => {
+        if (item.file.type === 'application/pdf') {
+          renderPdfToImages(item.file).then(pages => {
+            if (pages[0]) {
+              setQueue(prev => prev.map(q => q.id === item.id && !q.imagePreview ? { ...q, imagePreview: pages[0] } : q));
+            }
+          }).catch(() => {});
+        }
+      });
     }
   };
 
@@ -420,7 +433,8 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, cur
           due_date: dueDate || undefined,
           category_id: matchedCategory.id,
           location: determinedLocation,
-          extractedCNPJ: extractedCNPJ
+          extractedCNPJ: extractedCNPJ,
+          imagePreview: nextItem.imagePreview || mainImage
       });
 
       const { data: insertedData, error } = await supabase.from('receipts').insert({
@@ -542,9 +556,21 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, cur
 
   // --- RENDERIZADORES ---
 
+  // 0. IMAGE ZOOM OVERLAY
+  const zoomOverlay = zoomedImage && (
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/90 p-4 animate-in fade-in" onClick={() => setZoomedImage(null)}>
+      <div className="relative w-full max-w-4xl h-full flex items-center justify-center">
+        <img src={zoomedImage} className="max-w-full max-h-full object-contain rounded-md" alt="Zoom" />
+        <button className="absolute top-4 right-4 bg-white/20 text-white p-2 rounded-full"><X size={24} /></button>
+      </div>
+    </div>
+  );
+
   // 1. EDIT MODAL
   if (editingItem) {
       return (
+          <>
+          {zoomOverlay}
           <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4 animate-in fade-in">
               <div className="bg-white rounded-xl shadow-xl w-full max-w-sm overflow-hidden flex flex-col max-h-[90vh]">
                   <div className="flex items-center justify-between p-4 border-b border-gray-100">
@@ -554,8 +580,11 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, cur
                       </button>
                   </div>
                   <div className="p-4 overflow-y-auto space-y-4">
-                      {/* Preview Image */}
-                       <div className="h-40 w-full bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden border border-gray-200">
+                      {/* Preview Image - Clickable */}
+                       <div 
+                            className="h-40 w-full bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden border border-gray-200 cursor-zoom-in"
+                            onClick={() => editingItem.imagePreview && setZoomedImage(editingItem.imagePreview)}
+                       >
                             {editingItem.imagePreview ? (
                                 <img src={editingItem.imagePreview} className="h-full object-contain" alt="Nota" />
                             ) : (
@@ -696,6 +725,7 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, cur
                   </div>
               </div>
           </div>
+          </>
       );
   }
 
@@ -799,6 +829,8 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, cur
   // 3. QUEUE / SUMMARY LIST
   if (mode === 'queue' || mode === 'summary') {
     return (
+      <>
+      {zoomOverlay}
       <div className="h-full flex flex-col bg-gray-50">
         {/* Header da Fila */}
         <div className="bg-white p-6 shadow-sm z-10 sticky top-0 border-b border-gray-100">
@@ -834,8 +866,11 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, cur
                         item.status === 'error' ? "border-red-200 bg-red-50" : ""
                     )}
                 >
-                    {/* Preview Image Thumb */}
-                    <div className="w-12 h-12 rounded-lg bg-gray-100 flex-shrink-0 overflow-hidden border border-gray-200">
+                    {/* Preview Image Thumb - Clickable */}
+                    <div 
+                        className="w-12 h-12 rounded-lg bg-gray-100 flex-shrink-0 overflow-hidden border border-gray-200 cursor-zoom-in"
+                        onClick={(e) => { e.stopPropagation(); if (item.imagePreview) setZoomedImage(item.imagePreview); }}
+                    >
                         {item.imagePreview ? (
                             <img src={item.imagePreview} className="w-full h-full object-cover" />
                         ) : (
@@ -975,6 +1010,7 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, cur
              )}
         </div>
       </div>
+      </>
     );
   }
 

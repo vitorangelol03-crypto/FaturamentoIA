@@ -10,6 +10,7 @@ import { clsx } from 'clsx';
 import { generatePDFReport, generateSingleReceiptPDF } from '../services/pdfService';
 import { supabase } from '../services/supabaseClient';
 import { notificationService } from '../services/notificationService';
+import * as pdfjsLib from 'pdfjs-dist';
 
 interface ReceiptListProps {
   receipts: Receipt[];
@@ -178,9 +179,37 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
   };
 
   const [loadingImage, setLoadingImage] = useState(false);
+  const [renderedPdfImage, setRenderedPdfImage] = useState<string | null>(null);
+
+  const renderPdfBase64ToImage = async (pdfBase64: string): Promise<string | null> => {
+    try {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+        'pdfjs-dist/build/pdf.worker.min.mjs',
+        import.meta.url
+      ).toString();
+      const raw = pdfBase64.replace(/^data:application\/pdf;base64,/, '');
+      const binary = atob(raw);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      const pdf = await pdfjsLib.getDocument({ data: bytes }).promise;
+      const page = await pdf.getPage(1);
+      const scale = 2;
+      const viewport = page.getViewport({ scale });
+      const canvas = document.createElement('canvas');
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      const ctx = canvas.getContext('2d')!;
+      await page.render({ canvasContext: ctx, viewport, canvas } as any).promise;
+      return canvas.toDataURL('image/jpeg', 0.9);
+    } catch (err) {
+      console.error('Erro ao renderizar PDF:', err);
+      return null;
+    }
+  };
 
   const handleCardClick = async (receipt: Receipt) => {
       setViewingReceipt(receipt);
+      setRenderedPdfImage(null);
       if (!receipt.image_url) {
         setLoadingImage(true);
         try {
@@ -191,12 +220,21 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
             .single();
           if (data?.image_url) {
             setViewingReceipt(prev => prev ? { ...prev, image_url: data.image_url } : prev);
+            if (data.image_url.startsWith('data:application/pdf')) {
+              const img = await renderPdfBase64ToImage(data.image_url);
+              if (img) setRenderedPdfImage(img);
+            }
           }
         } catch (err) {
           console.error('Erro ao carregar imagem:', err);
         } finally {
           setLoadingImage(false);
         }
+      } else if (receipt.image_url.startsWith('data:application/pdf')) {
+        setLoadingImage(true);
+        const img = await renderPdfBase64ToImage(receipt.image_url);
+        if (img) setRenderedPdfImage(img);
+        setLoadingImage(false);
       }
   };
 
@@ -224,15 +262,16 @@ export const ReceiptList: React.FC<ReceiptListProps> = ({ receipts, categories, 
                 </div>
                 <div className="overflow-y-auto flex-1 min-h-0 p-0">
                     <div className="relative h-48 bg-gray-100 flex items-center justify-center overflow-hidden group cursor-zoom-in" onClick={() => {
-                      if (viewingReceipt.image_url && !viewingReceipt.image_url.startsWith('data:application/pdf')) {
-                        setZoomedImage(viewingReceipt.image_url);
-                      }
+                      const imgSrc = renderedPdfImage || (viewingReceipt.image_url && !viewingReceipt.image_url.startsWith('data:application/pdf') ? viewingReceipt.image_url : null);
+                      if (imgSrc) setZoomedImage(imgSrc);
                     }}>
                          {loadingImage ? (
                             <div className="flex flex-col items-center text-gray-400">
                               <Loader2 size={32} className="animate-spin mb-2" />
                               <span className="text-xs">Carregando imagem...</span>
                             </div>
+                         ) : renderedPdfImage ? (
+                            <img src={renderedPdfImage} className="w-full h-full object-cover opacity-90 group-hover:opacity-100" alt="Comprovante PDF" />
                          ) : viewingReceipt.image_url ? (
                             viewingReceipt.image_url.startsWith('data:application/pdf') ? (
                               <div className="w-full h-full flex flex-col items-center justify-center bg-red-50 text-red-400">
