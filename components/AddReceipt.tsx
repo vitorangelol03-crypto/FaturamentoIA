@@ -57,6 +57,9 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, cur
   const [editingItem, setEditingItem] = useState<QueueItem | null>(null);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
 
+  // Bulk Location State
+  const [changingBulkLocation, setChangingBulkLocation] = useState(false);
+
   // File Input Ref
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -80,6 +83,34 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, cur
     : 0;
   
   const isQueueFinished = queue.length > 0 && !queue.some(i => ['waiting', 'processing', 'saving'].includes(i.status));
+
+  const currentBulkLocation = (() => {
+    const successItems = queue.filter(i => i.status === 'success' && i.location);
+    if (successItems.length === 0) return currentUser.location || 'Caratinga';
+    return successItems[0].location || 'Caratinga';
+  })();
+
+  const changeBulkLocation = async (newLocation: string) => {
+    const successItems = queue.filter(i => i.status === 'success' && i.dbId);
+    if (successItems.length === 0) return;
+    setChangingBulkLocation(true);
+    try {
+      const ids = successItems.map(i => i.dbId!);
+      const BATCH = 50;
+      for (let i = 0; i < ids.length; i += BATCH) {
+        const batch = ids.slice(i, i + BATCH);
+        const { error } = await supabase.from('receipts').update({ location: newLocation }).in('id', batch);
+        if (error) throw error;
+      }
+      setQueue(prev => prev.map(item => 
+        item.status === 'success' ? { ...item, location: newLocation } : item
+      ));
+    } catch (err: any) {
+      alert('Erro ao alterar localização: ' + (err.message || 'Erro'));
+    } finally {
+      setChangingBulkLocation(false);
+    }
+  };
 
   // --- CAMERA INPUT HANDLING (Hiding Nav) ---
   const handleInputFocus = () => {
@@ -868,6 +899,43 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, cur
                         <CheckCircle size={16} />
                         <span className="font-medium">Processamento finalizado!</span>
                      </div>
+                     {isAdmin && processedCount > 0 && (
+                       <div className="bg-gray-50 border border-gray-200 rounded-xl p-3">
+                         <div className="flex items-center justify-between mb-2">
+                           <span className="text-[10px] font-bold text-gray-400 uppercase flex items-center gap-1">
+                             <MapPin size={10} />
+                             Empresa ({processedCount} nota{processedCount > 1 ? 's' : ''})
+                           </span>
+                           {changingBulkLocation && <Loader2 size={14} className="animate-spin text-brand-500" />}
+                         </div>
+                         <div className="flex gap-2">
+                           <button
+                             onClick={() => currentBulkLocation !== 'Caratinga' && changeBulkLocation('Caratinga')}
+                             disabled={changingBulkLocation}
+                             className={clsx(
+                               "flex-1 py-2 text-xs font-medium rounded-lg border transition-all",
+                               currentBulkLocation === 'Caratinga'
+                                 ? "bg-brand-50 border-brand-500 text-brand-700 shadow-sm"
+                                 : "bg-white border-gray-200 text-gray-500 hover:border-gray-300"
+                             )}
+                           >
+                             Caratinga
+                           </button>
+                           <button
+                             onClick={() => currentBulkLocation !== 'Ponte Nova' && changeBulkLocation('Ponte Nova')}
+                             disabled={changingBulkLocation}
+                             className={clsx(
+                               "flex-1 py-2 text-xs font-medium rounded-lg border transition-all",
+                               currentBulkLocation === 'Ponte Nova'
+                                 ? "bg-brand-50 border-brand-500 text-brand-700 shadow-sm"
+                                 : "bg-white border-gray-200 text-gray-500 hover:border-gray-300"
+                             )}
+                           >
+                             Ponte Nova
+                           </button>
+                         </div>
+                       </div>
+                     )}
                      <button 
                         onClick={onSaved}
                         className="w-full bg-green-600 text-white py-4 rounded-xl font-bold shadow-lg shadow-green-500/30 hover:bg-green-700 flex items-center justify-center gap-2 transform active:scale-95 transition-all text-lg"
