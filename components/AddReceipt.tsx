@@ -293,14 +293,14 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, cur
 
     for (let i = 1; i <= pageCount; i++) {
       const page = await pdf.getPage(i);
-      const scale = 2.0;
+      const scale = 2.5;
       const viewport = page.getViewport({ scale });
       const canvas = document.createElement('canvas');
       canvas.width = viewport.width;
       canvas.height = viewport.height;
       const ctx = canvas.getContext('2d')!;
       await page.render({ canvasContext: ctx, viewport, canvas } as any).promise;
-      pageImages.push(canvas.toDataURL('image/jpeg', 0.85));
+      pageImages.push(canvas.toDataURL('image/jpeg', 0.92));
     }
 
     return pageImages;
@@ -398,9 +398,14 @@ export const AddReceipt: React.FC<AddReceiptProps> = ({ categories, onSaved, cur
           }
       }
 
-      const matchedCategory = categories.find(c => 
-          c.name.toLowerCase() === rawData.suggested_category?.toLowerCase()
-      ) || categories.find(c => c.is_default) || categories[0] || { id: '', name: 'Sem categoria', color: '#6B7280' };
+      const normalize = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+      const suggestedNorm = normalize(rawData.suggested_category || '');
+      const matchedCategory = 
+          categories.find(c => normalize(c.name) === suggestedNorm) ||
+          categories.find(c => suggestedNorm && normalize(c.name).includes(suggestedNorm)) ||
+          categories.find(c => suggestedNorm && suggestedNorm.includes(normalize(c.name))) ||
+          categories.find(c => c.is_default) || categories[0] || { id: '', name: 'Sem categoria', color: '#6B7280' };
+      console.log(`[Categoria] Gemini: "${rawData.suggested_category}" → Match: "${matchedCategory.name}" (${rawData.establishment})`);
 
       const paymentDate = new Date().toISOString().split('T')[0];
       const issueDate = rawData.issue_date || rawData.date || null;
