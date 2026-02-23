@@ -101,6 +101,7 @@ A smart receipt/invoice management application built with React and TypeScript. 
 - Error banner with "Tentar novamente" button when data loading fails
 
 ## Recent Changes
+- 2026-02-23: Image preview improvements — PDF receipts now render first page as image preview (instead of generic icon) in both AddReceipt queue and ReceiptList detail modal; all image previews are clickable for full-screen zoom (AddReceipt queue thumbs, edit modal, ReceiptList detail); pdfjs-dist used in ReceiptList to convert PDF base64 to viewable image
 - 2026-02-23: Category matching improvement — accent-insensitive normalize (NFD), partial match (includes both directions), console log for debugging Gemini category suggestions, PDF rendering quality upgraded (scale 2.5, JPEG 0.92)
 - 2026-02-23: Bulk location change — admin-only location toggle (Caratinga/Ponte Nova) in AddReceipt queue footer after processing finishes, updates all processed receipts in batch before "Salvar e Finalizar"
 - 2026-02-23: Advanced delete — admin-only "Excluir por Usuário/Data" modal in Settings: filter by user dropdown + specific date, preview matching receipts, individual/bulk selection, batch delete with sefaz_notes unlinking, existing "Limpar Notas por Período" preserved
